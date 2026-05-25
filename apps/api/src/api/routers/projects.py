@@ -71,6 +71,7 @@ def create_project(body: CreateProjectRequest) -> dict:
         author=body.author,
         characters={},
         scenes={},
+        start_scene_id="",
         created_at=now,
         updated_at=now,
     )

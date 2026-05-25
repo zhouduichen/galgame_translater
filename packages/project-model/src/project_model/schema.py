@@ -92,13 +92,13 @@ class CharacterCue(BaseModel):
     name: str
     role: str = "supporting"  # protagonist, supporting, antagonist
     description: str
-    traits: list[str] = []
+    traits: list[str] = Field(default_factory=list)
     color: str | None = None  # nameplate / text color hint
 
 
 class Character(CharacterCue):
     """Full character definition in an AdaptationProject — includes assigned assets."""
-    asset_ids: dict[Emotion, str] = {}
+    asset_ids: dict[Emotion, str] = Field(default_factory=dict)
     """Maps emotion → asset_resource_id for sprite rendering."""
 
 
@@ -110,7 +110,7 @@ class ChoiceOption(BaseModel):
     next_node_id: str
     condition: str | None = None
     """Optional variable expression string. Empty = always available."""
-    effects: dict[str, Any] = {}
+    effects: dict[str, Any] = Field(default_factory=dict)
     """Variables to set when this option is chosen, e.g. {"affection_heroine": 3}."""
 
 
@@ -218,12 +218,12 @@ class ParseDraft(BaseModel):
     novel_title: str
     novel_excerpt: str
     synopsis: str = ""
-    characters: list[CharacterCue]
-    locations: list[str] = []
-    scenes: list[Scene]
-    asset_cues: list[AssetCue] = []
-    variables: list[dict[str, Any]] = []
-    warnings: list[str] = []
+    characters: list[CharacterCue] = Field(default_factory=list)
+    locations: list[str] = Field(default_factory=list)
+    scenes: list[Scene] = Field(default_factory=list)
+    asset_cues: list[AssetCue] = Field(default_factory=list)
+    variables: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class AdaptationProject(BaseModel):
@@ -231,10 +231,11 @@ class AdaptationProject(BaseModel):
     project_id: str
     title: str
     author: str = ""
-    characters: dict[str, Character]
-    scenes: dict[str, Scene]
-    variables: list[dict[str, Any]] = []
-    asset_resources: dict[str, AssetResource] = {}
+    characters: dict[str, Character] = Field(default_factory=dict)
+    scenes: dict[str, Scene] = Field(default_factory=dict)
+    start_scene_id: str
+    variables: list[dict[str, Any]] = Field(default_factory=list)
+    asset_resources: dict[str, AssetResource] = Field(default_factory=dict)
     created_at: str = ""
     updated_at: str = ""
     version: int = 1
@@ -255,7 +256,7 @@ class ExportArtifact(BaseModel):
     file_path: str
     file_size_bytes: int | None = None
     created_at: str = ""
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class GenerationJob(BaseModel):
@@ -265,8 +266,8 @@ class GenerationJob(BaseModel):
     job_type: Literal["parse_draft", "generate_asset", "export_renpy"]
     status: JobStatus = JobStatus.pending
     progress: float = 0.0
-    payload: dict[str, Any] = {}
-    result: dict[str, Any] = {}
+    payload: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
     created_at: str = ""
     updated_at: str = ""
