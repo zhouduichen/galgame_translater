@@ -94,9 +94,11 @@ ASSETS: dict[str, AssetResource] = {
 
 CHARACTERS: dict[str, Character] = {
     "heroine": Character(
-        character_id="heroine", name="白雨", role="protagonist",
-        description="沉默寡言但内心细腻的少女，喜欢在教室窗边看书。",
-        traits=["安静", "善于观察", "倔强"],
+        character_id="heroine",
+        name="Haku Ame",
+        role="protagonist",
+        description="A quiet but observant student who reads novels by the classroom window.",
+        traits=["quiet", "observant", "stubborn"],
         color="#88ccff",
         asset_ids={
             Emotion.neutral: "sprite_heroine_neutral",
@@ -107,9 +109,11 @@ CHARACTERS: dict[str, Character] = {
         },
     ),
     "rival": Character(
-        character_id="rival", name="朱雀院 椿", role="supporting",
-        description="学生会会长，气质凛然的优等生，对主角抱有复杂的竞争心。",
-        traits=["严格", "优秀", "外冷内热"],
+        character_id="rival",
+        name="Akane Suzume",
+        role="supporting",
+        description="The strict student council president, admired for her precision and poise.",
+        traits=["strict", "talented", "secretly kind"],
         color="#ff6688",
         asset_ids={
             Emotion.neutral: "sprite_rival_neutral",
@@ -117,9 +121,11 @@ CHARACTERS: dict[str, Character] = {
         },
     ),
     "friend": Character(
-        character_id="friend", name="朝日 奏", role="supporting",
-        description="主角的同班好友，元气满满的吐槽役。",
-        traits=["开朗", "话多", "热心"],
+        character_id="friend",
+        name="Nana Asahi",
+        role="supporting",
+        description="The heroine's energetic classmate and informal emotional support.",
+        traits=["bright", "talkative", "helpful"],
         color="#ffcc44",
         asset_ids={
             Emotion.neutral: "sprite_friend_neutral",
@@ -130,49 +136,49 @@ CHARACTERS: dict[str, Character] = {
 
 # ─── Scenes ──────────────────────────────────────────────────────────────────
 
-# Scene 1: 校门口偶遇
+# Scene 1: School gate encounter
 SCENE1_NODES: dict = {
     "s1_narr_start": NarrationNode(
         node_id="s1_narr_start",
-        text="春天清晨，樱花纷飞的校门口。新学期第一天，空气中弥漫着花粉和新鲜感的气味。",
+        text="Spring morning at the school gate, cherry blossoms drifting in the air. The first day of a new semester, carrying the scent of pollen and fresh beginnings.",
         background_id="bg_sakura_path",
         next_node_id="s1_dialogue_friend",
     ),
     "s1_dialogue_friend": DialogueNode(
         node_id="s1_dialogue_friend",
-        character_id="friend", text="早啊白雨！新学期第一天就这么没精神，昨晚又熬夜看书了？",
+        character_id="friend", text="Morning, Ame! You look half asleep again — stayed up reading last night?",
         emotion=Emotion.happy, side=Side.right,
         next_node_id="s1_dialogue_heroine_1",
     ),
     "s1_dialogue_heroine_1": DialogueNode(
         node_id="s1_dialogue_heroine_1",
-        character_id="heroine", text="……嗯。小说看完了最后一章，没控制住时间。",
+        character_id="heroine", text="...Yeah. Finished the last chapter of my novel. Lost track of time.",
         emotion=Emotion.neutral, side=Side.left,
         next_node_id="s1_dialogue_friend_2",
     ),
     "s1_dialogue_friend_2": DialogueNode(
         node_id="s1_dialogue_friend_2",
-        character_id="friend", text="哈哈哈，果然是你！对了，听说今天转学生会会长要来找你，你知道吗？",
+        character_id="friend", text="Haha, that's so you! Oh hey, did you know the student council president is looking for you today?",
         emotion=Emotion.neutral, side=Side.right,
         next_node_id="s1_dialogue_heroine_2",
     ),
     "s1_dialogue_heroine_2": DialogueNode(
         node_id="s1_dialogue_heroine_2",
-        character_id="heroine", text="……找我？我好像没做什么会被记过的事。",
+        character_id="heroine", text="...Looking for me? I don't think I've done anything worth a reprimand.",
         emotion=Emotion.neutral, side=Side.left,
         next_node_id="s1_choice",
     ),
     "s1_choice": ChoiceNode(
         node_id="s1_choice",
-        text="听到这个消息，你心想：",
+        text="Hearing this, you think:",
         options=[
             ChoiceOption(
-                option_id="s1_opt_worry", text="有点不安……我最近没惹事吧？",
+                option_id="s1_opt_worry", text="A bit uneasy... I haven't been in trouble lately, have I?",
                 next_node_id="s1_dialogue_heroine_worry",
                 effects={"anxiety": 1},
             ),
             ChoiceOption(
-                option_id="s1_opt_curious", text="会长找我？有意思。",
+                option_id="s1_opt_curious", text="The president wants to see me? Interesting.",
                 next_node_id="s1_dialogue_heroine_curious",
                 effects={"anxiety": -1, "confidence": 1},
             ),
@@ -180,31 +186,31 @@ SCENE1_NODES: dict = {
     ),
     "s1_dialogue_heroine_worry": DialogueNode(
         node_id="s1_dialogue_heroine_worry",
-        character_id="heroine", text="……奏，你知不知道是什么事？给我点心理准备。",
+        character_id="heroine", text="...Nana, do you know what it's about? Give me a heads-up at least.",
         emotion=Emotion.shy, side=Side.left,
         next_node_id="s1_dialogue_friend_3",
     ),
     "s1_dialogue_heroine_curious": DialogueNode(
         node_id="s1_dialogue_heroine_curious",
-        character_id="heroine", text="那就让她来找我好啦，反正我也没什么好躲的。",
+        character_id="heroine", text="Let her come find me, then. It's not like I have anything to hide.",
         emotion=Emotion.neutral, side=Side.left,
         next_node_id="s1_dialogue_friend_3",
     ),
     "s1_dialogue_friend_3": DialogueNode(
         node_id="s1_dialogue_friend_3",
-        character_id="friend", text="我也不清楚详情——不过看她的表情，不像是坏事哦！我先去教室了，你加油～",
+        character_id="friend", text="I don't know the details — but from the look on her face, it didn't seem bad! I'll head to class first. Good luck~",
         emotion=Emotion.happy, side=Side.right,
         next_node_id="s1_narr_rival_enters",
     ),
     "s1_narr_rival_enters": NarrationNode(
         node_id="s1_narr_rival_enters",
-        text="奏挥挥手跑开了。你正要迈步，身后传来清冽的声音。",
+        text="Nana waves and runs off. Just as you're about to step forward, a clear voice calls out from behind you.",
         background_id="bg_sakura_path",
         next_node_id="s1_dialogue_rival",
     ),
     "s1_dialogue_rival": DialogueNode(
         node_id="s1_dialogue_rival",
-        character_id="rival", text="你就是白雨同学吧。我是学生会会长，朱雀院椿。占用你五分钟。",
+        character_id="rival", text="You must be Haku Ame. I'm Akane Suzume, student council president. I need five minutes of your time.",
         emotion=Emotion.neutral, side=Side.right,
         next_node_id="s1_end",
     ),
@@ -215,73 +221,73 @@ SCENE1_NODES: dict = {
     ),
 }
 
-# Scene 2: 教室谈判
+# Scene 2: Classroom conversation
 SCENE2_NODES: dict = {
     "s2_narr_classroom": NarrationNode(
         node_id="s2_narr_classroom",
-        text="空无一人的教室里，两人隔着一张课桌相对而坐。窗外传来运动部的吆喝声。",
+        text="In the empty classroom, the two of you sit across from each other at a desk. The sounds of sports clubs drift in through the window.",
         background_id="bg_classroom",
         next_node_id="s2_dialogue_rival_1",
     ),
     "s2_dialogue_rival_1": DialogueNode(
         node_id="s2_dialogue_rival_1",
-        character_id="rival", text="开门见山地说——我希望你加入学生会。",
+        character_id="rival", text="I'll be direct — I'd like you to join the student council.",
         emotion=Emotion.neutral, side=Side.right,
         next_node_id="s2_dialogue_heroine_1",
     ),
     "s2_dialogue_heroine_1": DialogueNode(
         node_id="s2_dialogue_heroine_1",
-        character_id="heroine", text="……哈？",
+        character_id="heroine", text="...Huh?",
         emotion=Emotion.surprised, side=Side.left,
         next_node_id="s2_dialogue_rival_2",
     ),
     "s2_dialogue_rival_2": DialogueNode(
         node_id="s2_dialogue_rival_2",
-        character_id="rival", text="我调查过你的履历。成绩优秀，文笔出色，去年校刊的获奖作品我读过了。",
+        character_id="rival", text="I checked your records. Excellent grades, strong writing skills — I read your award-winning piece in last year's school paper.",
         emotion=Emotion.neutral, side=Side.right,
         next_node_id="s2_dialogue_rival_3",
     ),
     "s2_dialogue_rival_3": DialogueNode(
         node_id="s2_dialogue_rival_3",
-        character_id="rival", text="学生会现在缺一个书记。与其从那些只想在简历里添一笔的家伙里挑，不如找真正有能力的人。",
+        character_id="rival", text="The council needs a secretary. I'd rather pick someone capable than someone just padding their resume.",
         emotion=Emotion.neutral, side=Side.right,
         next_node_id="s2_dialogue_heroine_2",
     ),
     "s2_dialogue_heroine_2": DialogueNode(
         node_id="s2_dialogue_heroine_2",
-        character_id="heroine", text="……被你看过底牌的感觉真不好。不过我确实没理由拒绝。",
+        character_id="heroine", text="...It's uncomfortable knowing you've read my file. But I don't really have a reason to refuse.",
         emotion=Emotion.shy, side=Side.left,
         next_node_id="s2_dialogue_rival_4",
     ),
     "s2_dialogue_rival_4": DialogueNode(
         node_id="s2_dialogue_rival_4",
-        character_id="rival", text="那就这么定了。明天放学后到学生会室报到。别迟到。",
+        character_id="rival", text="Then it's settled. Report to the council room after school tomorrow. Don't be late.",
         emotion=Emotion.neutral, side=Side.right,
         next_node_id="s2_narr_end",
     ),
     "s2_narr_end": NarrationNode(
         node_id="s2_narr_end",
-        text="朱雀院椿站起身，校服裙摆划出一道利落的弧线。她走到门口时停顿了一下。",
+        text="Akane Suzume stands up, her uniform skirt tracing a sharp arc. She pauses at the door.",
         background_id="bg_classroom",
         next_node_id="s2_dialogue_rival_final",
     ),
     "s2_dialogue_rival_final": DialogueNode(
         node_id="s2_dialogue_rival_final",
-        character_id="rival", text="——期待你的表现。",
+        character_id="rival", text="— I look forward to seeing what you can do.",
         emotion=Emotion.neutral, side=Side.right,
         next_node_id="s2_choice",
     ),
     "s2_choice": ChoiceNode(
         node_id="s2_choice",
-        text="她的背影消失在门后，你心想：",
+        text="Her silhouette disappears beyond the door. You think:",
         options=[
             ChoiceOption(
-                option_id="s2_opt_positive", text="……好像也不坏。新学期有个新开始。",
+                option_id="s2_opt_positive", text="...Doesn't seem so bad. A new start for the new semester.",
                 next_node_id="s2_ending_positive",
                 effects={"confidence": 1, "rival_relation": 1},
             ),
             ChoiceOption(
-                option_id="s2_opt_negative", text="麻烦……希望别占用太多看书的时间。",
+                option_id="s2_opt_negative", text="What a hassle... hope it doesn't cut into my reading time.",
                 next_node_id="s2_ending_neutral",
                 effects={"anxiety": 1},
             ),
@@ -290,27 +296,27 @@ SCENE2_NODES: dict = {
     "s2_ending_positive": EndingNode(
         node_id="s2_ending_positive",
         ending_type="neutral",
-        epilogue="就这样，你成为了学生会书记。未来的校园生活，似乎不会太无聊了。",
+        epilogue="And so, you became the student council secretary. It seems like campus life won't be boring after all.",
     ),
     "s2_ending_neutral": EndingNode(
         node_id="s2_ending_neutral",
         ending_type="neutral",
-        epilogue="你叹了口气，收拾好书包走出教室。图书馆今天还开着，至少今晚能把那本小说读完。",
+        epilogue="You sigh, pack your bag, and leave the classroom. The library is still open — at least you can finish that novel tonight.",
     ),
 }
 
 SCENES: list[Scene] = [
     Scene(
         scene_id="scene_gate",
-        title="樱花校门",
-        description="新学期第一天，校门口的偶遇。",
+        title="Sakura School Gate",
+        description="A first-morning encounter at the school gate.",
         background_id="bg_sakura_path",
         nodes=SCENE1_NODES,
     ),
     Scene(
         scene_id="scene_classroom",
-        title="空教室的对话",
-        description="与学生会长的第一次正面交锋。",
+        title="Empty Classroom",
+        description="A direct conversation with the student council president.",
         background_id="bg_classroom",
         nodes=SCENE2_NODES,
     ),
@@ -321,41 +327,48 @@ SCENES: list[Scene] = [
 MOCK_PARSE_DRAFT = ParseDraft(
     draft_id="draft_001",
     project_id="proj_001",
-    novel_title="春日の軌跡",
-    novel_excerpt="春天清晨，樱花纷飞的校门口...",
-    synopsis="内向少女白雨在高中新学期被学生会会长看中，被迫（？）加入学生会，"
-             "在与个性鲜明的成员们相处的过程中逐渐打开心扉的故事。",
+    novel_title="Spring Rail",
+    novel_excerpt="The school gate glimmered under drifting petals on the first morning of spring.",
+    synopsis=(
+        "Haku Ame is invited into the student council by Akane Suzume, a strict president "
+        "who has already read Haku's writing. The demo follows their first meeting and "
+        "Haku's choice to treat the new semester as a chance or a burden."
+    ),
     characters=[
         CharacterCue(
-            character_id="heroine", name="白雨", role="protagonist",
-            description="沉默寡言但内心细腻的少女，喜欢看书。",
-            traits=["安静", "善于观察", "倔强"],
+            character_id="heroine",
+            name="Haku Ame",
+            role="protagonist",
+            description="A quiet student who notices more than she says.",
+            traits=["quiet", "observant", "stubborn"],
         ),
         CharacterCue(
-            character_id="rival", name="朱雀院 椿", role="supporting",
-            description="学生会会长，气质凛然。",
-            traits=["严格", "优秀", "外冷内热"],
+            character_id="rival",
+            name="Akane Suzume",
+            role="supporting",
+            description="Student council president with a precise way of speaking.",
+            traits=["strict", "talented", "secretly kind"],
         ),
         CharacterCue(
-            character_id="friend", name="朝日 奏", role="supporting",
-            description="主角的同班好友。",
-            traits=["开朗", "话多", "热心"],
+            character_id="friend",
+            name="Nana Asahi",
+            role="supporting",
+            description="Haku's cheerful classmate.",
+            traits=["bright", "talkative", "helpful"],
         ),
     ],
-    locations=["校门口", "教室", "学生会室", " rooftop"],
+    locations=["school gate", "classroom", "student council room"],
     scenes=SCENES,
     asset_cues=[
         AssetCue(
             asset_id="bg_sakura_path", target_type=AssetType.background,
-            description="春天的樱花校门，花瓣纷飞", style_preset="anime_visual_novel",
+            description="Spring school gate with drifting sakura petals.",
+            style_preset="anime_visual_novel",
         ),
         AssetCue(
             asset_id="bg_classroom", target_type=AssetType.background,
-            description="午后阳光充足的教室", style_preset="anime_visual_novel",
-        ),
-        AssetCue(
-            asset_id="bg_rooftop", target_type=AssetType.background,
-            description="黄昏的天台，铁丝网围栏", style_preset="anime_visual_novel",
+            description="Empty classroom lit by afternoon sun.",
+            style_preset="anime_visual_novel",
         ),
     ],
 )
@@ -364,14 +377,15 @@ MOCK_PARSE_DRAFT = ParseDraft(
 
 MOCK_PROJECT = AdaptationProject(
     project_id="proj_001",
-    title="春日の軌跡 - 第一章",
+    title="Spring Rail - Chapter One",
     author="demo",
     characters=CHARACTERS,
     scenes={s.scene_id: s for s in SCENES},
+    start_scene_id="scene_gate",
     variables=[
-        {"name": "anxiety", "type": "int", "default": 0, "description": "主角的不安值"},
-        {"name": "confidence", "type": "int", "default": 0, "description": "主角的自信值"},
-        {"name": "rival_relation", "type": "int", "default": 0, "description": "与朱雀院椿的关系"},
+        {"name": "anxiety", "type": "int", "default": 0, "description": "Heroine unease"},
+        {"name": "confidence", "type": "int", "default": 0, "description": "Heroine confidence"},
+        {"name": "rival_relation", "type": "int", "default": 0, "description": "Relationship with the council president"},
     ],
     asset_resources=ASSETS,
 )
