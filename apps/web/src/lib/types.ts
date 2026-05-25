@@ -154,6 +154,7 @@ export type Project = {
   author: string;
   characters: Record<string, Character>;
   scenes: Record<string, Scene>;
+  start_scene_id: string;
   asset_resources: Record<string, AssetResource>;
   variables: { name: string; type: string; default: string | number | boolean }[];
   created_at: string;
