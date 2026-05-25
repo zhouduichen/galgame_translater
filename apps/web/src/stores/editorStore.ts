@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Project, Scene, StoryNode, ChoiceOption } from "@/lib/types";
+import { api } from "@/lib/api";
 
 export type EditorState = {
   project: Project | null;
@@ -33,10 +34,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   dirty: false,
 
   loadProject: (project) => {
-    const scenes = Object.values(project.scenes);
+    const sceneId = project.start_scene_id || Object.keys(project.scenes)[0] || null;
     set({
       project,
-      currentSceneId: scenes[0]?.scene_id ?? null,
+      currentSceneId: sceneId,
       selectedNodeId: null,
       dirty: false,
     });
@@ -186,11 +187,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveProject: async () => {
     const { project } = get();
     if (!project) return;
-    await fetch(`/api/projects/${project.project_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(project),
-    });
+    await api.updateProject(project);
     set({ dirty: false });
   },
 }));
