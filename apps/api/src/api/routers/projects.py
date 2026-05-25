@@ -10,7 +10,6 @@ from project_model.schema import AdaptationProject, GenerationJob, JobStatus, Pa
 
 from ..database import (
     SessionLocal,
-    init_db,
     load_draft,
     load_project,
     save_draft,
@@ -19,11 +18,6 @@ from ..database import (
 )
 
 router = APIRouter()
-
-
-@router.on_event("startup")
-def startup():
-    init_db()
 
 
 # ─── Request schemas ─────────────────────────────────────────────────────────

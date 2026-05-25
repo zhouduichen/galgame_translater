@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from typing import Any
 
@@ -15,8 +16,9 @@ from project_model.schema import (
     ParseDraft,
 )
 
-SQLITE_URL = "sqlite:///data/galgame.db"
-engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False})
+DATABASE_URL = os.getenv("GALGAME_DATABASE_URL", "sqlite:///data/galgame.db")
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine)
 
 
