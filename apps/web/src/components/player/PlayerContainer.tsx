@@ -31,23 +31,22 @@ export function PlayerContainer({ project }: Props) {
       const text = "text" in node ? node.text || "" : "";
       const delay = Math.max(800, text.length ? text.length * textSpeed + 600 : 1500);
       autoTimer.current = setTimeout(() => {
-        if (node.type === "dialogue" && node.next_node_id) {
-          const scene = usePlayerStore.getState().scene;
-          if (scene && scene.nodes[node.next_node_id]) {
-            store.goTo(scene.nodes[node.next_node_id]);
-          }
+        const state = usePlayerStore.getState();
+        if (state.node && state.node.type !== "choice" && state.node.type !== "ending") {
+          state.advance();
         }
       }, delay);
       return () => {
         if (autoTimer.current) clearTimeout(autoTimer.current);
       };
     }
-  }, [autoMode, status, node, textSpeed, store]);
+  }, [autoMode, status, node, textSpeed]);
 
   const {
     scene,
     history,
-    goTo,
+    advance,
+    chooseOption,
     goBack,
     restartScene,
     toggleAutoMode,
@@ -82,11 +81,7 @@ export function PlayerContainer({ project }: Props) {
           character={project.characters[node.character_id] ?? null}
           emotion={node.emotion}
           textSpeed={textSpeed}
-          onClick={() => {
-            if (node.next_node_id && scene.nodes[node.next_node_id]) {
-              goTo(scene.nodes[node.next_node_id]);
-            }
-          }}
+          onClick={advance}
         />
       )}
 
@@ -94,11 +89,7 @@ export function PlayerContainer({ project }: Props) {
         <NarrationBox
           text={node.text}
           textSpeed={textSpeed}
-          onClick={() => {
-            if (node.next_node_id && scene.nodes[node.next_node_id]) {
-              goTo(scene.nodes[node.next_node_id]);
-            }
-          }}
+          onClick={advance}
         />
       )}
 
@@ -106,11 +97,7 @@ export function PlayerContainer({ project }: Props) {
         <ChoicePanel
           narration={node.text}
           options={node.options}
-          onChoose={(opt) => {
-            if (scene.nodes[opt.next_node_id]) {
-              goTo(scene.nodes[opt.next_node_id]);
-            }
-          }}
+          onChoose={(opt) => chooseOption(opt.option_id)}
         />
       )}
 
