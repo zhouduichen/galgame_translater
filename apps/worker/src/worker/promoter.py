@@ -122,13 +122,17 @@ def promote(draft: dict[str, Any], project_id: str | None = None) -> AdaptationP
         except Exception:
             pass
 
-    # 4. Build the project
+    # 4. Determine start scene
+    start_scene_id = next(iter(scenes)) if scenes else ""
+
+    # 5. Build the project
     project = AdaptationProject(
         project_id=project_id,
         title=draft.get("novel_title", "Untitled"),
         author="",
         characters=characters,
         scenes=scenes,
+        start_scene_id=start_scene_id,
         variables=draft.get("variables", []),
         asset_resources={},
         created_at=now,

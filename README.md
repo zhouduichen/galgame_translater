@@ -49,3 +49,14 @@ npm.cmd run build
 - Web-based player and single-scene editor
 - Export to Ren'Py project zip
 - Asset generation (ComfyUI/SD) — Phase 2
+
+## Verification
+
+```bash
+python -m pytest -q
+cd apps/web
+npm.cmd run test
+npm.cmd run build
+```
+
+Use `npm.cmd` on Windows PowerShell to avoid the local script execution policy blocking `npm.ps1`.
