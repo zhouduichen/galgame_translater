@@ -43,7 +43,7 @@ def _update_job(job_id: str, **kwargs):
     sets = ", ".join(f"{k} = ?" for k in kwargs)
     conn.execute(
         f"UPDATE generation_jobs SET {sets}, updated_at = ? WHERE id = ?",
-        [*kwargs.values(), datetime.now(timezone.utc).isoformat(), job_id],
+        [*kwargs.values(), datetime.utcnow().isoformat() + "Z", job_id],
     )
     conn.commit()
     conn.close()

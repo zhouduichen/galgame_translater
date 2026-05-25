@@ -2,10 +2,11 @@
 import json
 import os
 import time
+import sys
 
 import httpx
 
-BASE = "http://127.0.0.1:8000/api/projects"
+BASE = "http://127.0.0.1:8001/api/projects"
 client = httpx.Client(timeout=30, follow_redirects=True)
 
 # 1. Create project
@@ -34,9 +35,17 @@ for i in range(90):
                 print(f"  Error: {j.get('error', '')[:500]}")
             elif j["status"] == "completed":
                 result = j.get("result", {})
-                print(f"  Result keys: {list(result.keys())}")
-                print(f"  Draft chars: {result.get('characters_count', 'N/A')}")
-                print(f"  Draft scenes: {result.get('scenes_count', 'N/A')}")
+                print(f"  Project ID: {result.get('project_id', 'N/A')}")
+                print(f"  Characters: {result.get('characters_count', 'N/A')}")
+                print(f"  Scenes: {result.get('scenes_count', 'N/A')}")
+                # Verify project loads
+                project_resp = client.get(f"{BASE}/{pid}")
+                project = project_resp.json()
+                print(f"\n  Promoted project: '{project.get('title')}'")
+                print(f"  Start scene: {project.get('start_scene_id', 'N/A')}")
+                char_count = len(project.get("characters", {}))
+                scene_count = len(project.get("scenes", {}))
+                print(f"  DB characters: {char_count}, scenes: {scene_count}")
             exit(0)
     if i % 10 == 0:
         print(f"  Still waiting... ({i*2}s)")

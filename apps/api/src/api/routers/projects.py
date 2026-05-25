@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -157,8 +158,8 @@ def list_jobs(project_id: str) -> list[GenerationJob]:
             job_type=r.job_type,  # type: ignore
             status=JobStatus(r.status),
             progress=r.progress,
-            payload={},
-            result={},
+            payload=json.loads(r.payload or "{}"),
+            result=json.loads(r.result or "{}"),
             error=r.error,
         )
         for r in rows

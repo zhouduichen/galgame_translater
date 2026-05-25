@@ -37,6 +37,18 @@ out/
 .DS_Store
 Thumbs.db
 
+# Claude
+.claude/
+
+# Other projects
+前端动画/
+
+# Secrets
+start_worker.bat
+
+# Dev logs
+.next-dev-*.log
+
 # Generated assets
 apps/api/data/
 apps/api/uploads/

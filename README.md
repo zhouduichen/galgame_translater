@@ -28,17 +28,17 @@ Upload (.txt/.md)
 ## Development
 
 ```bash
-# Backend
-cd apps/api && pip install -e . && uvicorn api.main:app --reload
+# Backend (default :8000, use --port if occupied)
+cd apps/api && pip install -e . && uvicorn api.main:app --reload --port 8001
 
 # Worker
 cd apps/worker && pip install -e . && python -m worker.main
 
-# Frontend
+# Frontend (default :3000, use --port if occupied)
 cd apps/web && npm install
-npm.cmd run dev
+npx next dev --port 3001
 
-# Frontend production build on Windows PowerShell
+# Frontend production build
 npm.cmd run build
 ```
 

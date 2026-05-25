@@ -54,8 +54,6 @@ def promote(draft: dict[str, Any], project_id: str | None = None) -> AdaptationP
     Raises:
         ValueError: If the draft is structurally invalid beyond repair.
     """
-    now = datetime.now(timezone.utc).isoformat() + "Z"
-
     if not project_id:
         project_id = f"proj_{int(datetime.now(timezone.utc).timestamp())}"
 
@@ -125,7 +123,7 @@ def promote(draft: dict[str, Any], project_id: str | None = None) -> AdaptationP
     # 4. Determine start scene
     start_scene_id = next(iter(scenes)) if scenes else ""
 
-    # 5. Build the project
+    # 5. Build the project (timestamps set by model_post_init)
     project = AdaptationProject(
         project_id=project_id,
         title=draft.get("novel_title", "Untitled"),
@@ -135,8 +133,6 @@ def promote(draft: dict[str, Any], project_id: str | None = None) -> AdaptationP
         start_scene_id=start_scene_id,
         variables=draft.get("variables", []),
         asset_resources={},
-        created_at=now,
-        updated_at=now,
         version=1,
     )
 
