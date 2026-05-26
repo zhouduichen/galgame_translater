@@ -59,6 +59,50 @@ def test_parse_request_creates_job() -> None:
     assert body["status"] == "pending"
 
 
+def test_create_project_ids_do_not_collide() -> None:
+    reset_database()
+    client = TestClient(app)
+
+    ids = {
+        client.post("/api/projects/", json={"title": f"Project {i}"}).json()["id"]
+        for i in range(5)
+    }
+
+    assert len(ids) == 5
+
+
+def test_parse_job_ids_do_not_collide_for_same_project() -> None:
+    reset_database()
+    client = TestClient(app)
+    project_id = client.post("/api/projects/", json={"title": "Parse Test"}).json()["id"]
+
+    first = client.post(
+        f"/api/projects/{project_id}/parse",
+        json={"novel_text": "First text.", "target_length": "10min_demo"},
+    ).json()
+    second = client.post(
+        f"/api/projects/{project_id}/parse",
+        json={"novel_text": "Second text.", "target_length": "10min_demo"},
+    ).json()
+
+    assert first["job_id"] != second["job_id"]
+    jobs = client.get(f"/api/projects/{project_id}/jobs").json()
+    assert len([job for job in jobs if job["job_type"] == "parse_draft"]) == 2
+
+
+def test_update_project_rejects_mismatched_path_id() -> None:
+    reset_database()
+    client = TestClient(app)
+    project_id = client.post("/api/projects/", json={"title": "A"}).json()["id"]
+    project = client.get(f"/api/projects/{project_id}").json()
+    project["project_id"] = "proj_other"
+
+    response = client.put(f"/api/projects/{project_id}", json=project)
+
+    assert response.status_code == 400
+    assert "project_id" in response.text
+
+
 def test_builtin_demo_uses_current_mock_data_even_if_database_has_stale_copy() -> None:
     reset_database()
     stale_demo = MOCK_PROJECT.model_copy(update={"title": "Old English Demo"})

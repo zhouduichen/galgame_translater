@@ -24,6 +24,7 @@ packages/
 上传小说 (.txt/.md)
   → AI 多步解析（摘要 → 角色 → 场景 → VN 适配）
     → 验证并生成规范化项目模型
+      → AI 绘图（ComfyUI 生成背景图 + 角色立绘）
       → Web 播放器（实时预览）
       → 在线编辑器（调整剧本）
       → Ren'Py 导出（待实现）
@@ -95,6 +96,29 @@ cd apps/web && npx next dev -p 3001
 
 项目根目录提供了 `start_worker.bat`（Windows），双击即可启动 Worker。
 
+### 可选：启动 ComfyUI（AI 绘图）
+
+要生成角色立绘和背景图，需要额外启动 ComfyUI：
+
+```bash
+# 终端 4：ComfyUI（端口 8188）
+cd D:\ComfyUI
+py -3.11 main.py --listen --enable-cors-header
+```
+
+或直接双击项目根目录的 `start_comfyui.bat`。
+
+**所需模型**：将 `.safetensors` 模型文件放入 `D:\ComfyUI\models\checkpoints\`。推荐使用动漫专用模型（如 CounterfeitV3、AnythingV5 等），默认配置为 `CounterfeitV3_fp16.safetensors`。
+
+可通过环境变量自定义模型：
+
+```env
+# ComfyUI 地址（默认 http://127.0.0.1:8188）
+COMFYUI_BASE=http://127.0.0.1:8188
+# 使用的 checkpoint 文件名
+COMFYUI_CHECKPOINT=v1-5-pruned-emaonly.safetensors
+```
+
 ## 功能状态
 
 | 功能 | 状态 |
@@ -103,7 +127,7 @@ cd apps/web && npx next dev -p 3001
 | AI 解析为场景、角色、对话、选择支 | ✅ 已完成（4 步 LLM 流水线） |
 | Web 播放器预览 | ✅ 已完成 |
 | 在线编辑器（单场景编辑） | ✅ 已完成 |
-| 角色/背景图自动生成（AI 绘图） | ❌ 待实现（Phase 6） |
+| 角色/背景图自动生成（AI 绘图） | ✅ 已完成（ComfyUI + CounterfeitV3） |
 | Ren'Py 项目导出 | ❌ 待实现（Phase 5） |
 | 暗色/亮色主题 | ✅ 已完成 |
 | DeepSeek / Claude / OpenAI 多模型支持 | ✅ 已完成 |
@@ -123,6 +147,15 @@ python -m pytest -q
 cd apps/web && npm run build
 ```
 
+## 媒体资源
+
+主页背景视频和页面背景图通过文件夹自动管理，无需上传界面。
+
+- **`视频/`** — 放入 `.mp4` / `.webm` / `.mov` 文件，主页随机选用作为 Hero 背景视频
+- **`背景图/`** — 放入 `.jpg` / `.png` / `.webp` / `.gif` 文件，工作室和上传页面随机选用作为背景
+
+新增文件即时生效，删除即移除。Docker 部署时两个文件夹通过 bind mount 挂载。
+
 ## 设计理念
 
 参见 [DESIGN.md](DESIGN.md) 和 [PRODUCT.md](PRODUCT.md)。
@@ -130,3 +163,7 @@ cd apps/web && npm run build
 - **第一秒即沉浸** — 进入网站如同翻开一部 Galgame 的标题画面
 - **氛围优先，功能次之** — 暗色主题默认，柔和的发光效果，治愈系美学
 - **为独处而设计** — 适合深夜打开，不刺眼，不喧哗
+
+## 已知依赖问题
+
+- **PostCSS 安全审计 (CVE-2025-27144)**: Next.js 内部依赖 `postcss@8.4.31`。`npm audit` 报告中等严重度的 XSS 风险。`npm audit fix --force` 会降级 Next.js 至 9.x，属破坏性变更。等待 Next.js 发布携带 `postcss>=8.5.10` 的版本后再升级。

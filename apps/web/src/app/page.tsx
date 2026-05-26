@@ -5,12 +5,6 @@ import { useRef, useState, useEffect } from "react";
 import { gsap } from "gsap";
 import { Plus } from "lucide-react";
 
-const VIDEO_SOURCES = [
-  "/anime-bg-video.mp4",
-  "/anime-bg-video-2.mp4",
-  "/anime-bg-video-3.mp4",
-];
-
 export default function HomePage() {
   const cardRef = useRef<HTMLDivElement>(null);
   const pixelGridRef = useRef<HTMLDivElement>(null);
@@ -20,8 +14,15 @@ export default function HomePage() {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
 
   useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * VIDEO_SOURCES.length);
-    setVideoSrc(VIDEO_SOURCES[randomIndex]);
+    fetch("/api/bg-videos")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.videos && data.videos.length > 0) {
+          const randomIndex = Math.floor(Math.random() * data.videos.length);
+          setVideoSrc(data.videos[randomIndex]);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
