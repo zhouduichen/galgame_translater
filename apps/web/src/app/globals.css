@@ -34,41 +34,59 @@
   --radius-xl: 16px;
 }
 
-/* Theme-aware CSS variables */
+/* Theme-aware runtime variables — reference @theme tokens as single source of truth */
 :root,
 [data-theme="dark"] {
-  --bg-deep: #0a0a10;
-  --bg-panel: #16161e;
-  --bg-card: #1e1e2a;
-  --bg-border: #2e2e3e;
+  --bg-deep: var(--color-night-deep);
+  --bg-panel: var(--color-night-panel);
+  --bg-card: var(--color-night-card);
+  --bg-border: var(--color-night-border);
   --bg-overlay: rgba(0, 0, 0, 0.6);
   --text-primary: #ececf4;
   --text-secondary: #9090a8;
   --text-muted: #58587a;
-  --glow-color: rgba(255, 139, 160, 0.19);
+  --accent-glow: rgba(255, 139, 160, 0.19);
   --shadow-float-low: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-float-high: 0 8px 32px rgba(0, 0, 0, 0.4);
   --player-gradient: linear-gradient(to top, rgba(10, 10, 16, 0.95) 0%, rgba(10, 10, 16, 0.9) 60%, transparent 100%);
 }
 
 [data-theme="light"] {
-  --bg-deep: #faf5f0;
-  --bg-panel: #f5efe8;
-  --bg-card: #ffffff;
-  --bg-border: #e0dbd4;
+  --bg-deep: var(--color-light-bg);
+  --bg-panel: var(--color-light-panel);
+  --bg-card: var(--color-light-card);
+  --bg-border: var(--color-light-border);
   --bg-overlay: rgba(0, 0, 0, 0.15);
   --text-primary: #1c1c2a;
   --text-secondary: #6a6a7e;
   --text-muted: #a8a4b8;
-  --glow-color: rgba(255, 139, 160, 0.25);
+  --accent-glow: rgba(255, 139, 160, 0.25);
   --shadow-float-low: 0 2px 8px rgba(0, 0, 0, 0.08);
   --shadow-float-high: 0 8px 24px rgba(0, 0, 0, 0.1);
   --player-gradient: linear-gradient(to top, rgba(250, 245, 240, 0.95) 0%, rgba(250, 245, 240, 0.9) 60%, transparent 100%);
 }
 
+/* System preference detection — user's manual data-theme attribute overrides this */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg-deep: var(--color-light-bg);
+    --bg-panel: var(--color-light-panel);
+    --bg-card: var(--color-light-card);
+    --bg-border: var(--color-light-border);
+    --bg-overlay: rgba(0, 0, 0, 0.15);
+    --text-primary: #1c1c2a;
+    --text-secondary: #6a6a7e;
+    --text-muted: #a8a4b8;
+    --accent-glow: rgba(255, 139, 160, 0.25);
+    --shadow-float-low: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-float-high: 0 8px 24px rgba(0, 0, 0, 0.1);
+    --player-gradient: linear-gradient(to top, rgba(250, 245, 240, 0.95) 0%, rgba(250, 245, 240, 0.9) 60%, transparent 100%);
+  }
+}
+
 body {
-  background: var(--bg-deep);
-  color: var(--text-primary);
+  background: var(--bg-deep, #0a0a10);
+  color: var(--text-primary, #ececf4);
   font-family: var(--font-body);
   transition: background 300ms cubic-bezier(0.19, 1, 0.22, 1),
               color 300ms cubic-bezier(0.19, 1, 0.22, 1);
