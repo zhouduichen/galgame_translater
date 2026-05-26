@@ -4,7 +4,7 @@ const BASE = "/api/projects";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  if (!res.ok) throw new Error(`接口 ${res.status}: ${res.statusText}`);
   return res.json();
 }
 

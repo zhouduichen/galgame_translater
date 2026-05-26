@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-26T00:00:00.000Z",
+  "title": "Design System: Galgame Translater — 夜樱工坊",
+  "extensions": {
+    "colorMeta": {
+      "sakura-pink": { "role": "primary", "displayName": "Sakura Pink", "canonical": "oklch(72% 0.09 10)", "tonalRamp": ["oklch(25% 0.03 10)", "oklch(35% 0.05 10)", "oklch(45% 0.07 10)", "oklch(55% 0.08 10)", "oklch(65% 0.09 10)", "oklch(72% 0.09 10)", "oklch(82% 0.07 10)", "oklch(92% 0.04 10)"] },
+      "sakura-deep": { "role": "primary-hover", "displayName": "Sakura Deep", "canonical": "oklch(62% 0.11 10)", "tonalRamp": [] },
+      "sakura-glow": { "role": "primary-glow", "displayName": "Sakura Glow", "canonical": "oklch(82% 0.07 10)", "tonalRamp": [] },
+      "night-deep": { "role": "neutral-bg", "displayName": "Night Deep", "theme": "dark", "canonical": "oklch(4% 0.005 30)", "tonalRamp": ["oklch(4% 0.005 30)", "oklch(8% 0.005 30)", "oklch(12% 0.006 30)", "oklch(18% 0.007 30)", "oklch(25% 0.008 30)", "oklch(35% 0.009 30)", "oklch(50% 0.01 30)", "oklch(70% 0.005 30)"] },
+      "night-panel": { "role": "neutral-surface", "displayName": "Night Panel", "theme": "dark", "canonical": "oklch(10% 0.006 30)", "tonalRamp": [] },
+      "night-card": { "role": "neutral-elevated", "displayName": "Night Card", "theme": "dark", "canonical": "oklch(14% 0.007 30)", "tonalRamp": [] },
+      "night-border": { "role": "neutral-border", "displayName": "Night Border", "theme": "dark", "canonical": "oklch(22% 0.01 30)", "tonalRamp": [] },
+      "warm-gold": { "role": "secondary", "displayName": "Warm Gold", "canonical": "oklch(72% 0.08 75)", "tonalRamp": [] },
+      "text-primary": { "role": "text-primary", "displayName": "Text Primary Dark", "theme": "dark", "canonical": "oklch(92% 0.005 30)", "tonalRamp": [] },
+      "text-secondary": { "role": "text-secondary", "displayName": "Text Secondary Dark", "theme": "dark", "canonical": "oklch(62% 0.01 30)", "tonalRamp": [] },
+      "text-muted": { "role": "text-muted", "displayName": "Text Muted Dark", "theme": "dark", "canonical": "oklch(40% 0.015 30)", "tonalRamp": [] },
+      "light-bg": { "role": "neutral-bg", "displayName": "Light BG", "theme": "light", "canonical": "oklch(96% 0.005 50)", "tonalRamp": ["oklch(96% 0.005 50)", "oklch(90% 0.006 50)", "oklch(82% 0.007 50)", "oklch(72% 0.008 50)", "oklch(60% 0.009 50)", "oklch(45% 0.01 50)", "oklch(30% 0.008 50)", "oklch(15% 0.005 50)"] },
+      "light-panel": { "role": "neutral-surface", "displayName": "Light Panel", "theme": "light", "canonical": "oklch(93% 0.005 50)", "tonalRamp": [] },
+      "light-card": { "role": "neutral-elevated", "displayName": "Light Card", "theme": "light", "canonical": "oklch(100% 0 0)", "tonalRamp": [] },
+      "light-border": { "role": "neutral-border", "displayName": "Light Border", "theme": "light", "canonical": "oklch(86% 0.006 50)", "tonalRamp": [] },
+      "light-text-primary": { "role": "text-primary", "displayName": "Text Primary Light", "theme": "light", "canonical": "oklch(14% 0.005 50)", "tonalRamp": [] },
+      "light-text-secondary": { "role": "text-secondary", "displayName": "Text Secondary Light", "theme": "light", "canonical": "oklch(46% 0.008 50)", "tonalRamp": [] },
+      "light-text-muted": { "role": "text-muted", "displayName": "Text Muted Light", "theme": "light", "canonical": "oklch(68% 0.008 50)", "tonalRamp": [] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Brand headlines and titles. Only on marketing/brand surfaces, never in app UI." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles, scene titles, chapter names." },
+      "title": { "displayName": "Title", "purpose": "Card titles, dialogue character names, panel headers." },
+      "body": { "displayName": "Body", "purpose": "Reading text: dialogue, narration, descriptions. Max line length 75ch." },
+      "label": { "displayName": "Label", "purpose": "Button text, tags, nav items, metadata." },
+      "mono": { "displayName": "Mono", "purpose": "Node IDs, code snippets, technical info." }
+    },
+    "shadows": [
+      { "name": "float-low", "value": "0 4px 12px rgba(0,0,0,0.3)", "purpose": "Dark mode: dropdowns, tooltips, light floating elements." },
+      { "name": "float-high", "value": "0 8px 32px rgba(0,0,0,0.4)", "purpose": "Dark mode: modals, dialogs, overlays." },
+      { "name": "float-low-light", "value": "0 2px 8px rgba(0,0,0,0.08)", "purpose": "Light mode: dropdowns, tooltips, light floating elements." },
+      { "name": "float-high-light", "value": "0 8px 24px rgba(0,0,0,0.1)", "purpose": "Light mode: modals, dialogs, overlays." }
+    ],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.19, 1, 0.22, 1)", "purpose": "Default easing for all state transitions. Exponential ease-out." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Hover states, micro-interactions." },
+      { "name": "duration-normal", "value": "300ms", "purpose": "Panel transitions, focus states." },
+      { "name": "duration-slow", "value": "600ms", "purpose": "Entrance animations, page transitions." },
+      { "name": "duration-particle", "value": "3000-6000ms", "purpose": "Particle animation cycles (sakura petals, snowflakes)." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Sakura pink accent button for primary actions.",
+      "html": "<button class=\"ds-btn-primary\">开始创作</button>",
+      "css": ".ds-btn-primary { background: #ff8ba0; color: #fff; padding: 12px 28px; border-radius: 12px; border: none; font-family: 'Noto Sans SC', 'Hiragino Sans GB', sans-serif; font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.03em; cursor: pointer; transition: background 0.2s cubic-bezier(0.19,1,0.22,1), transform 0.2s cubic-bezier(0.19,1,0.22,1), box-shadow 0.2s cubic-bezier(0.19,1,0.22,1); } .ds-btn-primary:hover { background: #e6758b; transform: translateY(-1px); box-shadow: 0 0 20px rgba(255,139,160,0.3); } .ds-btn-primary:focus-visible { outline: 2px solid #ffb3c1; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Outlined button for secondary actions.",
+      "html": "<button class=\"ds-btn-secondary\">取消</button>",
+      "css": ".ds-btn-secondary { background: transparent; color: #ececf4; padding: 12px 28px; border-radius: 12px; border: 1px solid #2e2e3e; font-family: 'Noto Sans SC', 'Hiragino Sans GB', sans-serif; font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.03em; cursor: pointer; transition: border-color 0.2s cubic-bezier(0.19,1,0.22,1), color 0.2s cubic-bezier(0.19,1,0.22,1); } .ds-btn-secondary:hover { border-color: #ff8ba0; color: #ff8ba0; } .ds-btn-secondary:focus-visible { outline: 2px solid #ffb3c1; outline-offset: 2px; }"
+    },
+    {
+      "name": "Dialogue Box",
+      "kind": "custom",
+      "refersTo": "dialogue-box",
+      "description": "Bottom-anchored VN dialogue box with gradient backdrop.",
+      "html": "<div class=\"ds-dialogue\"><div class=\"ds-dialogue-header\"><span class=\"ds-dialogue-name\" style=\"color:#ff8ba0\">朝仓 音梦</span><span class=\"ds-dialogue-emotion\">happy</span></div><p class=\"ds-dialogue-text\">今天也是、适合赏花的一天呢。<span class=\"ds-dialogue-cursor\">▌</span></p></div>",
+      "css": ".ds-dialogue { position: absolute; bottom: 0; left: 0; right: 0; padding: 64px 24px 24px; background: linear-gradient(to top, rgba(10,10,16,0.95) 0%, rgba(10,10,16,0.9) 60%, transparent 100%); cursor: pointer; } .ds-dialogue-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .ds-dialogue-name { font-family: 'Noto Serif SC', Georgia, serif; font-size: 1.25rem; font-weight: 600; } .ds-dialogue-emotion { padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.06); font-size: 0.75rem; color: #9090a8; } .ds-dialogue-text { max-width: 75ch; margin: 0 auto; font-family: 'Noto Sans SC', sans-serif; font-size: 1rem; line-height: 1.7; color: #ececf4; } .ds-dialogue-cursor { margin-left: 2px; color: #ff8ba0; animation: pulse 1s ease-in-out infinite; } @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }"
+    },
+    {
+      "name": "Choice Option",
+      "kind": "custom",
+      "refersTo": "choice-option",
+      "description": "Clickable choice option in the VN player.",
+      "html": "<div class=\"ds-choice\"><div class=\"ds-choice-option\"><span class=\"ds-choice-marker\">◆</span><span>去花园看看</span></div><div class=\"ds-choice-option\"><span class=\"ds-choice-marker\">◆</span><span>留在房间里</span></div></div>",
+      "css": ".ds-choice { max-width: 75ch; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; } .ds-choice-option { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-radius: 12px; border: 1px solid #2e2e3e; background: #1e1e2a; color: #ececf4; cursor: pointer; font-family: 'Noto Sans SC', sans-serif; font-size: 1rem; transition: border-color 0.2s cubic-bezier(0.19,1,0.22,1), background 0.2s cubic-bezier(0.19,1,0.22,1); } .ds-choice-option:hover { border-color: #ff8ba0; background: rgba(255,139,160,0.08); } .ds-choice-marker { color: #ff8ba0; font-size: 0.75rem; }"
+    },
+    {
+      "name": "Node Card (Editor)",
+      "kind": "card",
+      "refersTo": "card-default",
+      "description": "Editor timeline node card with colored type indicator.",
+      "html": "<div class=\"ds-nodecard\" style=\"border-left-color: #ff8ba0\"><div class=\"ds-nodecard-header\"><div class=\"ds-nodecard-meta\"><span class=\"ds-nodecard-type\">dialogue</span><code class=\"ds-nodecard-id\">n_001</code></div><div class=\"ds-nodecard-actions\"><button class=\"ds-nodecard-btn\">▲</button><button class=\"ds-nodecard-btn\">▼</button><button class=\"ds-nodecard-btn ds-nodecard-btn-del\">×</button></div></div></div>",
+      "css": ".ds-nodecard { border-radius: 12px; border: 1px solid #2e2e3e; border-left-width: 4px; background: #16161e; transition: box-shadow 0.2s cubic-bezier(0.19,1,0.22,1); } .ds-nodecard:hover { box-shadow: 0 0 0 1px rgba(255,139,160,0.3); } .ds-nodecard-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; cursor: pointer; } .ds-nodecard-meta { display: flex; align-items: center; gap: 8px; } .ds-nodecard-type { padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); font-size: 0.6875rem; text-transform: uppercase; color: #58587a; } .ds-nodecard-id { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #9090a8; } .ds-nodecard-actions { display: flex; gap: 4px; } .ds-nodecard-btn { background: none; border: none; padding: 4px 6px; font-size: 0.75rem; color: #58587a; cursor: pointer; border-radius: 4px; } .ds-nodecard-btn:hover { color: #ececf4; background: rgba(255,255,255,0.06); } .ds-nodecard-btn-del { color: #e86868; } .ds-nodecard-btn-del:hover { background: rgba(232,104,104,0.15); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Dark-themed text input with sakura pink focus state.",
+      "html": "<div class=\"ds-input-group\"><input type=\"text\" class=\"ds-input\" placeholder=\"输入场景标题...\" /></div>",
+      "css": ".ds-input-group { display: flex; flex-direction: column; gap: 4px; } .ds-input { background: #0a0a10; color: #ececf4; padding: 10px 14px; border-radius: 8px; border: 1px solid #2e2e3e; font-family: 'Noto Sans SC', 'Hiragino Sans GB', sans-serif; font-size: 0.875rem; line-height: 1.5; transition: border-color 0.2s cubic-bezier(0.19,1,0.22,1), box-shadow 0.2s cubic-bezier(0.19,1,0.22,1); outline: none; width: 100%; box-sizing: border-box; } .ds-input::placeholder { color: #58587a; } .ds-input:focus { border-color: #ff8ba0; box-shadow: 0 0 0 2px rgba(255,139,160,0.19); } .ds-input:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Progress Bar",
+      "kind": "custom",
+      "refersTo": "progress-bar",
+      "description": "Upload/parse progress indicator with gradient fill.",
+      "html": "<div class=\"ds-progress\"><div class=\"ds-progress-label\"><span>Parsing with AI...</span><span class=\"ds-progress-hint\">Processing...</span></div><div class=\"ds-progress-track\"><div class=\"ds-progress-fill ds-progress-indeterminate\"></div></div></div>",
+      "css": ".ds-progress { width: 100%; } .ds-progress-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8125rem; } .ds-progress-label span:first-child { color: #9090a8; } .ds-progress-hint { color: #58587a; animation: pulse 1s ease-in-out infinite; } .ds-progress-track { height: 4px; background: #0a0a10; border-radius: 8px; overflow: hidden; } .ds-progress-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #ff8ba0, #ffb3c1); transition: width 0.3s ease; } .ds-progress-indeterminate { width: 66%; animation: indeterminate-pulse 1.5s ease-in-out infinite; } @keyframes indeterminate-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "夜樱工坊 — 在夜色与樱花环绕中创造故事",
+    "overview": "夜色为纸，樱花为墨。这个设计系统融合了深夜的静谧与樱花的温柔，为一个将小说转化为 Galgame 的创作平台提供视觉语言。它不像工具，更像一个让人愿意停留的空间 — 打开页面就像推开一间夜色中的工坊，暖光笼罩，樱花飘落。\n\n系统采用深色画布作为基底，樱花粉作为情感锚点，金色暖光作为氛围点缀。每一屏都是精心构图的画面，而不是功能堆砌的面板。动效是编排过的叙事节奏，而不是随意的装饰。",
+    "keyCharacteristics": [
+      "深色基底 + 樱花粉锚点 + 暖金色点缀，三色构成视觉主轴",
+      "排版优先：衬线字体用于标题和角色名，无衬线用于正文，形成情感与信息的清晰分层",
+      "动效编排：粒子系统（樱花、雪花）、光影扫过、模糊过渡、呼吸感缩放，所有动效服务于'治愈·唯美'的感受",
+      "沉浸优先：内容即装饰，背景画布和角色立绘本身就是界面",
+      "克制的信息密度：工具功能被优雅地隐藏在体验之后"
+    ],
+    "rules": [
+      { "name": "The 夜樱 Rule", "body": "Sakura Pink 是唯一的情感色锚点。不使用第二种高饱和度色与其竞争。金色是温暖的辅助，不是第二主角。", "section": "colors" },
+      { "name": "The Night Rule", "body": "所有表面都以深夜色为基底。樱花粉出现在交互元素和高亮上，从不作为大面积背景色。夜的深度是沉浸感的来源，粉色的点缀是情感的出口。", "section": "colors" },
+      { "name": "The One-Glow Rule", "body": "每个页面最多只有一个主动发光源（光晕/粒子/扫光）。多个发光源会破坏夜色的静谧感。", "section": "colors" },
+      { "name": "The 物语 Rule", "body": "角色名永远使用衬线字体（Display 或 Headline 级别），与正文的无衬线形成视觉区隔。角色的声音通过字体切换就能被感知。", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "表面在静止状态下是平的。阴影仅作为状态响应（hover、聚焦、浮动）出现。面板之间的层级关系通过颜色深度表达，而非投影。", "section": "elevation" }
+    ],
+    "dos": [
+      "使用樱花粉作为唯一的情感色锚点，金色只作为极少量点缀",
+      "使用衬线字体（Noto Serif SC）展示角色名和标题，无衬线字体展示正文",
+      "在深色背景上使用半透明渐变叠加层确保文字可读性",
+      "为每个页面编排一个有节制的动效：页面入场渐入、元素依次出现、粒子系统作为背景层",
+      "在工具 UI（编辑器、上传页）中保持樱花粉的克制使用，避免干扰功能性",
+      "在播放器全屏模式下最大化沉浸感 — 隐藏所有非必要 UI 元素",
+      "使用颜色明度分层（night-deep → night-panel → night-card）来表达层级，而非投影"
+    ],
+    "donts": [
+      "使用纯白色 (#ffffff) 或纯黑色 (#000000) — 所有中性色都带微暖色相",
+      "使用玻璃拟态（backdrop-blur 作为默认样式）",
+      "使用渐变文字（background-clip: text + gradient）",
+      "在卡片左侧使用超过 1px 的彩色竖条作为装饰性边框 — NodeCard 的 4px 彩色边框是功能性的类型标识，不是装饰",
+      "SaaS Dashboard 风格 — 没有大数字指标、没有数据表格作为主页、没有侧边栏导航图表",
+      "在同一页面使用多个发光源 — 遵循 One-Glow 规则",
+      "使用弹跳动画或弹性缓动 — 所有动效使用 exponential ease-out",
+      "嵌套卡片 — 卡片不应该嵌套在其他卡片中",
+      "在编辑器中使用模态框作为第一选择 — 优先使用行内展开编辑"
+    ]
+  }
+}

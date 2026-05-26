@@ -15,7 +15,7 @@ export function ProjectCard({ id, title }: Props) {
           {title}
         </h3>
         <span className="rounded-full bg-sakura-pink/10 px-2.5 py-0.5 text-[10px] font-medium tracking-wider text-sakura-pink">
-          DEMO
+          演示
         </span>
       </div>
       <p className="mb-4 text-xs text-[var(--text-muted)] font-mono">{id}</p>
@@ -24,13 +24,13 @@ export function ProjectCard({ id, title }: Props) {
           href={`/project/${id}`}
           className="rounded-lg bg-sakura-pink px-4 py-2 text-xs font-medium text-white transition-all duration-300 hover:bg-sakura-deep hover:shadow-[0_0_16px_var(--accent-glow)]"
         >
-          Play
+          播放
         </Link>
         <Link
           href={`/project/${id}/edit`}
           className="rounded-lg border border-[var(--bg-border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-all duration-300 hover:border-sakura-pink hover:text-sakura-pink"
         >
-          Edit
+          编辑
         </Link>
       </div>
     </div>

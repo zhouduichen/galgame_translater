@@ -125,7 +125,7 @@ export default function HomePage() {
         {/* Footer */}
         <footer className="mt-20 border-t border-[var(--bg-border)] pt-8 text-center">
           <p className="text-xs text-[var(--text-muted)]">
-            Galgame Translater <span className="text-sakura-pink">v0.1.0</span>
+            Galgame 转译器 <span className="text-sakura-pink">v0.1.0</span>
           </p>
         </footer>
       </div>

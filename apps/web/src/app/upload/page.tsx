@@ -87,7 +87,7 @@ export default function UploadPage() {
           新项目
         </h1>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          上传 .txt 或 .md 小说文件，AI 将为你生成可播放的 Galgame demo。
+          上传 .txt 或 .md 小说文件，AI 将为你生成可播放的 Galgame 演示版。
         </p>
 
         {/* Dropzone */}
@@ -172,7 +172,7 @@ export default function UploadPage() {
                 href={`/project/${projectId}`}
                 className="rounded-xl bg-sakura-pink px-6 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:bg-sakura-deep hover:shadow-[0_0_16px_var(--accent-glow)]"
               >
-                播放 Demo
+                播放演示版
               </Link>
               <Link
                 href={`/project/${projectId}/edit`}

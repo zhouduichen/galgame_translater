@@ -36,7 +36,7 @@ export function PlayerControls({
         }`}
         onClick={onToggleAuto}
       >
-        AUTO
+        自动
       </button>
 
       <select
