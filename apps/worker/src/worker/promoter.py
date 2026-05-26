@@ -126,7 +126,7 @@ def promote(draft: dict[str, Any], project_id: str | None = None) -> AdaptationP
     # 5. Build the project (timestamps set by model_post_init)
     project = AdaptationProject(
         project_id=project_id,
-        title=draft.get("novel_title", "Untitled"),
+        title=draft.get("novel_title", "未命名作品"),
         author="",
         characters=characters,
         scenes=scenes,

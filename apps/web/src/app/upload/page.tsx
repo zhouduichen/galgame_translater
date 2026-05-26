@@ -37,7 +37,7 @@ export default function UploadPage() {
     try {
       const text = await file.text();
       const title = file.name.replace(/\.(txt|md)$/, "");
-      const createRes = await fetch("/api/projects/", {
+      const createRes = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),

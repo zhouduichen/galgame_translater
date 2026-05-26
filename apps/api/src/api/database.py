@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine
@@ -16,7 +17,8 @@ from project_model.schema import (
     ParseDraft,
 )
 
-DATABASE_URL = os.getenv("GALGAME_DATABASE_URL", "sqlite:///data/galgame.db")
+_DEFAULT_DB = Path(__file__).resolve().parent.parent.parent / "data" / "galgame.db"
+DATABASE_URL = os.getenv("GALGAME_DATABASE_URL", f"sqlite:///{_DEFAULT_DB.as_posix()}")
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine)

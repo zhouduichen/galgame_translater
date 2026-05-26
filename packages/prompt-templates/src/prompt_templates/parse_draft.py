@@ -14,7 +14,12 @@ STEP_VN_ADAPT = "vn_adapt"
 
 # ─── Step 1: Summarize ───────────────────────────────────────────────────────
 
+CHINESE_OUTPUT_RULE = "所有面向用户的文本必须使用简体中文，包括标题、简介、角色描述、场景描述、旁白、对白、选项和素材描述。"
+
+
 PROMPT_SUMMARIZE = """You are a visual novel adaptation assistant. Your task is to analyze a novel excerpt and produce a structured summary.
+
+{chinese_output_rule}
 
 Novel text:
 ```
@@ -34,6 +39,8 @@ Output ONLY valid JSON with this exact structure (no markdown fences, no extra t
 # ─── Step 2: Characters ──────────────────────────────────────────────────────
 
 PROMPT_CHARACTERS = """Based on this novel excerpt, identify all characters and their attributes.
+
+{chinese_output_rule}
 
 Novel text:
 ```
@@ -66,6 +73,8 @@ Rules:
 # ─── Step 3: Scenes ──────────────────────────────────────────────────────────
 
 PROMPT_SCENES = """Segment the novel excerpt into distinct scenes. A scene is a continuous sequence at one location with a consistent set of characters.
+
+{chinese_output_rule}
 
 Novel text:
 ```
@@ -100,6 +109,8 @@ Rules:
 # ─── Step 4: VN Adaptation ──────────────────────────────────────────────────
 
 PROMPT_VN_ADAPT = """Convert the following scene into a visual novel node graph. Each node is one "frame" of the visual novel.
+
+{chinese_output_rule}
 
 Scene info:
 {scene_info}
@@ -171,21 +182,25 @@ def build_parse_draft_prompt(step: str, **kwargs) -> str:
     match step:
         case "summarize":
             return PROMPT_SUMMARIZE.format(
+                chinese_output_rule=CHINESE_OUTPUT_RULE,
                 novel_text=kwargs["novel_text"],
                 target_length=kwargs.get("target_length", "10min_demo"),
             )
         case "characters":
             return PROMPT_CHARACTERS.format(
+                chinese_output_rule=CHINESE_OUTPUT_RULE,
                 novel_text=kwargs["novel_text"],
                 summary_json=kwargs["summary_json"],
             )
         case "scenes":
             return PROMPT_SCENES.format(
+                chinese_output_rule=CHINESE_OUTPUT_RULE,
                 novel_text=kwargs["novel_text"],
                 characters_json=kwargs["characters_json"],
             )
         case "vn_adapt":
             return PROMPT_VN_ADAPT.format(
+                chinese_output_rule=CHINESE_OUTPUT_RULE,
                 scene_id=kwargs["scene_id"],
                 scene_title=kwargs["scene_title"],
                 scene_description=kwargs["scene_description"],

@@ -13,7 +13,7 @@ LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic").lower()
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-20250514")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
-MAX_TOKENS = 4096
+MAX_TOKENS = int(os.environ.get("MAX_TOKENS", "4096"))
 
 # DeepSeek defaults
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")

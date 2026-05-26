@@ -5,6 +5,7 @@ description = "Background job processor for galgame translater"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
+    "python-dotenv>=1.0",
 ]
 
 [build-system]

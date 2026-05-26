@@ -7,6 +7,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from .tasks import TASK_HANDLERS
 
 POLL_INTERVAL = 5  # seconds

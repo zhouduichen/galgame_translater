@@ -4,8 +4,9 @@ os.environ["GALGAME_DATABASE_URL"] = "sqlite:///./test_galgame_api.db"
 
 from fastapi.testclient import TestClient
 
-from api.database import Base, engine, init_db
+from api.database import Base, SessionLocal, engine, init_db, save_project
 from api.main import app
+from project_model.mock_data import MOCK_PROJECT
 
 
 def reset_database() -> None:
@@ -56,3 +57,20 @@ def test_parse_request_creates_job() -> None:
     assert body["project_id"] == project_id
     assert body["job_type"] == "parse_draft"
     assert body["status"] == "pending"
+
+
+def test_builtin_demo_uses_current_mock_data_even_if_database_has_stale_copy() -> None:
+    reset_database()
+    stale_demo = MOCK_PROJECT.model_copy(update={"title": "Old English Demo"})
+    with SessionLocal() as session:
+        save_project(session, stale_demo)
+    client = TestClient(app)
+
+    load_response = client.get(f"/api/projects/{MOCK_PROJECT.project_id}")
+    list_response = client.get("/api/projects/")
+
+    assert load_response.status_code == 200
+    assert load_response.json()["title"] == MOCK_PROJECT.title
+    assert list_response.status_code == 200
+    listed_demo = next(p for p in list_response.json()["projects"] if p["id"] == MOCK_PROJECT.project_id)
+    assert listed_demo["title"] == MOCK_PROJECT.title

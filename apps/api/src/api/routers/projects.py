@@ -49,9 +49,12 @@ def list_projects():
 
         rows = session.query(ProjectRow).all()
         projects = [{"id": r.id, "title": r.title} for r in rows]
-    # Always include mock
+    # Always expose the bundled demo from source so stale local DB rows do not hide updates.
     mock_id = MOCK_PROJECT.project_id
-    if not any(p["id"] == mock_id for p in projects):
+    existing_mock = next((p for p in projects if p["id"] == mock_id), None)
+    if existing_mock:
+        existing_mock["title"] = MOCK_PROJECT.title
+    else:
         projects.insert(0, {"id": mock_id, "title": MOCK_PROJECT.title})
     return {"projects": projects}
 
@@ -75,13 +78,19 @@ def create_project(body: CreateProjectRequest) -> dict:
     return {"id": project.project_id, "ok": True}
 
 
+@router.post("")
+def create_project_no_slash(body: CreateProjectRequest) -> dict:
+    """Create a new empty project (without trailing slash)."""
+    return create_project(body)
+
+
 @router.get("/{project_id}")
 def get_project(project_id: str) -> AdaptationProject:
+    if project_id == MOCK_PROJECT.project_id:
+        return MOCK_PROJECT
     with SessionLocal() as session:
         project = load_project(session, project_id)
     if project is None:
-        if project_id == MOCK_PROJECT.project_id:
-            return MOCK_PROJECT
         raise HTTPException(404, "Project not found")
     return project
 

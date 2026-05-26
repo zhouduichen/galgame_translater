@@ -4,11 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import init_db
 from .routers import projects
 
-app = FastAPI(title="Galgame Translater API", version="0.1.0")
+app = FastAPI(title="Galgame 转译器 API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

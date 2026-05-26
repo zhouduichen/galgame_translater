@@ -14,7 +14,11 @@ from prompt_templates.parse_draft import STEP_SUMMARIZE, STEP_CHARACTERS, STEP_S
 
 from .llm import call_llm_json
 
-SYSTEM_PROMPT = "You are a precise JSON generator for a visual novel adaptation pipeline. Output ONLY valid JSON, no explanations, no markdown fences."
+SYSTEM_PROMPT = (
+    "You are a precise JSON generator for a visual novel adaptation pipeline. "
+    "Output ONLY valid JSON, no explanations, no markdown fences. "
+    "All user-facing story text must be Simplified Chinese."
+)
 
 
 def parse_novel(novel_text: str, target_length: str = "10min_demo") -> dict[str, Any]:
@@ -106,7 +110,7 @@ def parse_novel(novel_text: str, target_length: str = "10min_demo") -> dict[str,
     result = {
         "draft_id": "",
         "project_id": "",
-        "novel_title": summary.get("title", "Untitled"),
+        "novel_title": summary.get("title", "未命名作品"),
         "novel_excerpt": novel_text[:500],
         "synopsis": summary.get("synopsis", ""),
         "characters": characters_simple,
