@@ -131,6 +131,13 @@ export function PlayerContainer({ project }: Props) {
       />
 
       <div className="absolute left-4 top-4 flex items-center gap-2">
+        <a
+          href="/studio"
+          className="rounded bg-[var(--bg-card)]/60 px-2 py-1 text-xs text-[var(--text-muted)] transition-colors hover:text-sakura-pink"
+        >
+          工作室
+        </a>
+        <span className="text-xs text-[var(--text-muted)]">/</span>
         <span className="rounded bg-[var(--bg-card)]/60 px-2 py-1 text-xs text-[var(--text-muted)]">
           {scene.title}
         </span>

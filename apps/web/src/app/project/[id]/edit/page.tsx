@@ -29,7 +29,7 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
       <div className="flex h-screen items-center justify-center bg-[var(--bg-deep)]">
         <div className="text-center">
           <p className="text-red-400">错误：{error}</p>
-          <a href="/" className="mt-4 inline-block text-sm text-sakura-pink hover:underline">
+          <a href="/studio" className="mt-4 inline-block text-sm text-sakura-pink hover:underline">
             &larr; 返回项目列表
           </a>
         </div>

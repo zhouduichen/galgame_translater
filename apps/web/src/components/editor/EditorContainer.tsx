@@ -89,6 +89,12 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
             <p className="text-xs text-[var(--text-muted)]">{currentScene.description}</p>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/studio"
+              className="rounded bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-muted)] transition-colors hover:text-sakura-pink"
+            >
+              工作室
+            </a>
             <button
               className="rounded bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
               onClick={onBackToPlayer}

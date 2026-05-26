@@ -29,7 +29,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       <div className="flex h-screen items-center justify-center bg-[var(--bg-deep)]">
         <div className="text-center">
           <p className="text-[var(--error-red)]">Error: {error}</p>
-          <a href="/" className="mt-4 inline-block text-sm text-sakura-pink hover:underline">
+          <a href="/studio" className="mt-4 inline-block text-sm text-sakura-pink hover:underline">
             ← 返回项目列表
           </a>
         </div>
