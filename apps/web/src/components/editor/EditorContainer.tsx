@@ -7,6 +7,15 @@ import { NodeCard } from "./NodeCard";
 import type { Project, StoryNode } from "@/lib/types";
 import { getNodeIdsInOrder } from "@/lib/types";
 
+const NODE_TYPE_LABELS: Record<string, string> = {
+  dialogue: "对白",
+  narration: "旁白",
+  choice: "选项",
+  scene_transition: "转场",
+  branch: "分支",
+  ending: "结局",
+};
+
 type Props = {
   project: Project;
   onBackToPlayer: () => void;
@@ -50,7 +59,7 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
   if (!currentScene) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-[#8888a0]">No scene selected</p>
+        <p className="text-[var(--text-secondary)]">未选择场景</p>
       </div>
     );
   }
@@ -58,12 +67,12 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
   const characters = store.project?.characters ?? {};
 
   return (
-    <div className="flex h-screen bg-[#0a0a0f]">
-      {/* Left: Scene tree */}
-      <div className="w-56 flex-shrink-0 border-r border-[#2a2a3a] overflow-y-auto p-3">
+    <div className="flex h-screen bg-[var(--bg-deep)]">
+      {/* 左侧：场景树 */}
+      <div className="w-56 flex-shrink-0 border-r border-[var(--bg-border)] overflow-y-auto p-3">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#8888a0]">Scenes</h2>
-          <span className="text-xs text-[#555568]">{Object.keys(store.project?.scenes ?? {}).length}</span>
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)]">场景</h2>
+          <span className="text-xs text-[var(--text-muted)]">{Object.keys(store.project?.scenes ?? {}).length}</span>
         </div>
         <SceneTree
           scenes={store.project?.scenes ?? {}}
@@ -76,26 +85,26 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-[#e8e8f0]">{currentScene.title}</h2>
-            <p className="text-xs text-[#555568]">{currentScene.description}</p>
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">{currentScene.title}</h2>
+            <p className="text-xs text-[var(--text-muted)]">{currentScene.description}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="rounded bg-[#1a1a25] px-3 py-1.5 text-xs text-[#8888a0] transition-colors hover:text-[#e8e8f0]"
+              className="rounded bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
               onClick={onBackToPlayer}
             >
-              Play
+              播放
             </button>
             <button
               className={`rounded px-3 py-1.5 text-xs transition-colors ${
                 dirty
-                  ? "bg-[#6688ff] text-white hover:bg-[#5577ee]"
-                  : "bg-[#1a1a25] text-[#555568]"
+                  ? "bg-sakura-pink text-white hover:bg-sakura-deep"
+                  : "bg-[var(--bg-card)] text-[var(--text-muted)]"
               }`}
               onClick={saveProject}
               disabled={!dirty}
             >
-              {dirty ? "Save" : "Saved"}
+              {dirty ? "保存" : "已保存"}
             </button>
           </div>
         </div>
@@ -105,13 +114,13 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
           {(["dialogue", "narration", "choice"] as const).map((type) => (
             <button
               key={type}
-              className="rounded border border-[#2a2a3a] bg-[#1a1a25] px-3 py-1.5 text-xs text-[#8888a0] transition-colors hover:border-[#6688ff] hover:text-[#e8e8f0]"
+              className="rounded border border-[var(--bg-border)] bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-sakura-pink hover:text-[var(--text-primary)]"
               onClick={() => {
                 const lastNodeId = orderedNodeIds[orderedNodeIds.length - 1];
                 addNode(type, lastNodeId);
               }}
             >
-              + {type}
+              + {type === "dialogue" ? "对白" : type === "narration" ? "旁白" : "选项"}
             </button>
           ))}
         </div>
@@ -119,7 +128,7 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
         {/* Node list */}
         <div className="space-y-2">
           {orderedNodeIds.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[#555568]">No nodes in this scene. Add one above.</p>
+            <p className="py-8 text-center text-sm text-[var(--text-muted)]">这个场景还没有节点。可以先添加一个。</p>
           ) : (
             orderedNodeIds.map((nodeId, idx) => {
               const node = currentScene.nodes[nodeId];
@@ -161,51 +170,53 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
       </div>
 
       {/* Right: Inspector / info */}
-      <div className="w-64 flex-shrink-0 border-l border-[#2a2a3a] overflow-y-auto p-3">
-        <h3 className="mb-3 text-sm font-semibold text-[#8888a0]">Inspector</h3>
+      <div className="w-64 flex-shrink-0 border-l border-[var(--bg-border)] overflow-y-auto p-3">
+        <h3 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">检查器</h3>
         {selectedNodeId && currentScene.nodes[selectedNodeId] ? (
-          <div className="space-y-3 text-xs text-[#8888a0]">
+          <div className="space-y-3 text-xs text-[var(--text-secondary)]">
             <div>
-              <span className="text-[#555568]">ID:</span>{" "}
-              <code className="text-[#6688ff]">{selectedNodeId}</code>
+              <span className="text-[var(--text-muted)]">ID:</span>{" "}
+              <code className="text-sakura-pink">{selectedNodeId}</code>
             </div>
             <div>
-              <span className="text-[#555568]">Type:</span>{" "}
-              <span className="capitalize">{currentScene.nodes[selectedNodeId].type}</span>
+              <span className="text-[var(--text-muted)]">类型：</span>{" "}
+              <span>
+                {NODE_TYPE_LABELS[currentScene.nodes[selectedNodeId].type] ?? currentScene.nodes[selectedNodeId].type}
+              </span>
             </div>
             {orderedNodeIds.indexOf(selectedNodeId) >= 0 && (
               <div>
-                <span className="text-[#555568]">Position:</span>{" "}
+                <span className="text-[var(--text-muted)]">位置：</span>{" "}
                 {orderedNodeIds.indexOf(selectedNodeId) + 1} / {orderedNodeIds.length}
               </div>
             )}
           </div>
         ) : (
-          <p className="text-xs text-[#555568]">Select a node to inspect</p>
+          <p className="text-xs text-[var(--text-muted)]">选择一个节点查看详情</p>
         )}
 
         <div className="mt-6">
-          <h4 className="mb-2 text-xs font-semibold text-[#555568]">Node Types</h4>
-          <div className="space-y-1 text-xs text-[#555568]">
+          <h4 className="mb-2 text-xs font-semibold text-[var(--text-muted)]">节点类型</h4>
+          <div className="space-y-1 text-xs text-[var(--text-muted)]">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded bg-[#6688ff]" />
-              dialogue
+              对白
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded bg-[#88cc88]" />
-              narration
+              旁白
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded bg-[#ff8866]" />
-              choice
+              选项
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded bg-[#ffcc44]" />
-              transition
+              转场
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded bg-[#ff6688]" />
-              ending
+              结局
             </div>
           </div>
         </div>

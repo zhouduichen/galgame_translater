@@ -16,13 +16,13 @@ export function SceneTree({ scenes, currentSceneId, onSelect }: Props) {
           key={scene.scene_id}
           className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
             scene.scene_id === currentSceneId
-              ? "bg-[#6688ff]/20 text-[#6688ff]"
-              : "text-[#8888a0] hover:bg-[#1a1a25] hover:text-[#e8e8f0]"
+              ? "bg-sakura-pink/20 text-sakura-pink"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--text-primary)]"
           }`}
           onClick={() => onSelect(scene.scene_id)}
         >
           <div className="font-medium">{scene.title}</div>
-          <div className="mt-0.5 text-xs text-[#555568]">{Object.keys(scene.nodes).length} nodes</div>
+          <div className="mt-0.5 text-xs text-[var(--text-muted)]">{Object.keys(scene.nodes).length} 个节点</div>
         </button>
       ))}
     </div>
