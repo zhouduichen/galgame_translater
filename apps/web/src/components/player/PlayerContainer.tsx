@@ -18,13 +18,11 @@ export function PlayerContainer({ project }: Props) {
   const store = usePlayerStore();
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load project on mount
   useEffect(() => {
     store.loadProject(project);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.project_id]);
 
-  // Auto-advance
   const { node, status, autoMode, textSpeed } = usePlayerStore();
   useEffect(() => {
     if (autoMode && status === "playing" && node) {
@@ -54,17 +52,15 @@ export function PlayerContainer({ project }: Props) {
   } = store;
 
   if (!scene || !node) {
-    return <div className="flex h-screen items-center justify-center text-[#8888a0]">Loading...</div>;
+    return <div className="flex h-screen items-center justify-center text-[var(--text-secondary)]">加载中...</div>;
   }
 
   const backgroundRes = scene.background_id ? project.asset_resources[scene.background_id] : null;
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black">
-      {/* Background layer */}
+    <div className="relative h-screen w-full overflow-hidden bg-[var(--bg-deep)]">
       <BackgroundLayer resource={backgroundRes} />
 
-      {/* Character sprite / scene content */}
       {node.type === "dialogue" && (
         <CharacterSprite
           character={project.characters[node.character_id] ?? null}
@@ -74,7 +70,6 @@ export function PlayerContainer({ project }: Props) {
         />
       )}
 
-      {/* Foreground overlay based on node type */}
       {node.type === "dialogue" && (
         <DialogueBox
           text={node.text}
@@ -103,28 +98,27 @@ export function PlayerContainer({ project }: Props) {
 
       {node.type === "scene_transition" && (
         <div className="flex h-full items-center justify-center">
-          <p className="animate-pulse text-[#8888a0]">Loading next scene...</p>
+          <p className="animate-pulse text-[var(--text-secondary)]">正在切换到下一幕...</p>
         </div>
       )}
 
       {node.type === "ending" && (
         <div className="flex h-full items-center justify-center">
-          <div className="rounded-lg border border-[#2a2a3a] bg-[#1a1a25]/80 p-8 text-center backdrop-blur-sm">
-            <span className="mb-3 inline-block rounded-full bg-[#6688ff]/20 px-3 py-1 text-xs text-[#6688ff]">
+          <div className="rounded-lg border border-[var(--bg-border)] bg-[var(--bg-card)]/80 p-8 text-center backdrop-blur-sm">
+            <span className="mb-3 inline-block rounded-full bg-sakura-pink/20 px-3 py-1 text-xs text-sakura-pink">
               {node.ending_type} ending
             </span>
-            {node.epilogue && <p className="mt-4 text-lg italic">{node.epilogue}</p>}
+            {node.epilogue && <p className="mt-4 text-lg italic text-[var(--text-primary)]">{node.epilogue}</p>}
             <button
-              className="mt-8 rounded-lg bg-[#6688ff] px-6 py-2 text-sm text-white transition-colors hover:bg-[#5577ee]"
+              className="mt-8 rounded-lg bg-sakura-pink px-6 py-2 text-sm text-white transition-colors hover:bg-sakura-deep"
               onClick={restartScene}
             >
-              Restart scene
+              重新开始本幕
             </button>
           </div>
         </div>
       )}
 
-      {/* Controls */}
       <PlayerControls
         status={status}
         autoMode={autoMode}
@@ -136,16 +130,15 @@ export function PlayerContainer({ project }: Props) {
         onRestart={restartScene}
       />
 
-      {/* Scene title + Edit */}
       <div className="absolute left-4 top-4 flex items-center gap-2">
-        <span className="rounded bg-[#1a1a25]/60 px-2 py-1 text-xs text-[#555568]">
+        <span className="rounded bg-[var(--bg-card)]/60 px-2 py-1 text-xs text-[var(--text-muted)]">
           {scene.title}
         </span>
         <a
           href={`/project/${project.project_id}/edit`}
-          className="rounded bg-[#1a1a25]/60 px-2 py-1 text-xs text-[#6688ff] transition-colors hover:bg-[#6688ff]/30"
+          className="rounded bg-[var(--bg-card)]/60 px-2 py-1 text-xs text-sakura-pink transition-colors hover:bg-sakura-pink/30"
         >
-          Edit
+          编辑
         </a>
       </div>
     </div>

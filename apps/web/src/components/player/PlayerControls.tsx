@@ -14,58 +14,48 @@ type Props = {
 };
 
 export function PlayerControls({
-  status,
-  autoMode,
-  textSpeed,
-  hasHistory,
-  onBack,
-  onToggleAuto,
-  onTextSpeedChange,
-  onRestart,
+  status, autoMode, textSpeed, hasHistory,
+  onBack, onToggleAuto, onTextSpeedChange, onRestart,
 }: Props) {
   return (
     <div className="absolute right-4 top-4 flex items-center gap-2">
-      {/* Back */}
       {hasHistory && (
         <button
-          className="rounded bg-[#1a1a25]/80 px-3 py-1.5 text-xs text-[#8888a0] transition-colors hover:text-[#e8e8f0]"
+          className="rounded-lg border border-[var(--bg-border)] bg-[var(--bg-card)]/80 px-3 py-1.5 text-xs text-[var(--text-secondary)] backdrop-blur-sm transition-all duration-200 hover:border-sakura-pink hover:text-[var(--text-primary)]"
           onClick={onBack}
         >
-          Back
+          返回
         </button>
       )}
 
-      {/* Auto */}
       <button
-        className={`rounded px-3 py-1.5 text-xs transition-colors ${
+        className={`rounded-lg border px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition-all duration-200 ${
           autoMode
-            ? "bg-[#6688ff]/30 text-[#6688ff]"
-            : "bg-[#1a1a25]/80 text-[#8888a0] hover:text-[#e8e8f0]"
+            ? "border-sakura-pink bg-sakura-pink/15 text-sakura-pink"
+            : "border-[var(--bg-border)] bg-[var(--bg-card)]/80 text-[var(--text-secondary)] hover:border-sakura-pink hover:text-[var(--text-primary)]"
         }`}
         onClick={onToggleAuto}
       >
-        {autoMode ? "AUTO ON" : "AUTO"}
+        AUTO
       </button>
 
-      {/* Speed */}
       <select
-        className="rounded bg-[#1a1a25]/80 px-2 py-1.5 text-xs text-[#8888a0]"
+        className="rounded-lg border border-[var(--bg-border)] bg-[var(--bg-card)]/80 px-2 py-1.5 text-xs text-[var(--text-secondary)] backdrop-blur-sm transition-all duration-200 hover:border-sakura-pink"
         value={textSpeed}
         onChange={(e) => onTextSpeedChange(Number(e.target.value))}
       >
-        <option value={0}>Instant</option>
-        <option value={20}>Fast</option>
-        <option value={40}>Normal</option>
-        <option value={80}>Slow</option>
+        <option value={0}>即时</option>
+        <option value={20}>快速</option>
+        <option value={40}>普通</option>
+        <option value={80}>慢速</option>
       </select>
 
-      {/* Restart */}
       {status === "ended" && (
         <button
-          className="rounded bg-[#1a1a25]/80 px-3 py-1.5 text-xs text-[#8888a0] transition-colors hover:text-[#e8e8f0]"
+          className="rounded-lg border border-[var(--bg-border)] bg-[var(--bg-card)]/80 px-3 py-1.5 text-xs text-[var(--text-secondary)] backdrop-blur-sm transition-all duration-200 hover:border-sakura-pink hover:text-[var(--text-primary)]"
           onClick={onRestart}
         >
-          Restart
+          重来
         </button>
       )}
     </div>

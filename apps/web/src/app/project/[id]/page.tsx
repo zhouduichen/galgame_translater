@@ -26,11 +26,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   if (error) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center bg-[var(--bg-deep)]">
         <div className="text-center">
-          <p className="text-red-400">Error: {error}</p>
-          <a href="/" className="mt-4 inline-block text-sm text-[#6688ff] hover:underline">
-            &larr; Back to projects
+          <p className="text-[var(--error-red)]">Error: {error}</p>
+          <a href="/" className="mt-4 inline-block text-sm text-sakura-pink hover:underline">
+            ← 返回项目列表
           </a>
         </div>
       </div>
@@ -39,8 +39,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   if (!project) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="text-[#8888a0] animate-pulse">Loading project...</p>
+      <div className="flex h-screen items-center justify-center bg-[var(--bg-deep)]">
+        <p className="text-[var(--text-secondary)] animate-pulse">加载项目中...</p>
       </div>
     );
   }

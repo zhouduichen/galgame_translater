@@ -28,10 +28,10 @@ export function CharacterSprite({ character, emotion, side, assetResources }: Pr
       ) : (
         <div className="flex h-full w-48 items-center justify-center">
           <div className="text-center">
-            <div className="mx-auto mb-2 flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#2a2a3a] bg-[#1a1a25] text-3xl">
+            <div className="mx-auto mb-2 flex h-24 w-24 items-center justify-center rounded-full border-2 border-[var(--bg-border)] bg-[var(--bg-card)] text-3xl text-sakura-pink">
               {character.name.charAt(0)}
             </div>
-            <p className="text-sm text-[#8888a0]">{character.name}</p>
+            <p className="text-sm text-[var(--text-secondary)]">{character.name}</p>
           </div>
         </div>
       )}
