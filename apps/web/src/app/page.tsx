@@ -1,91 +1,134 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ProjectCard } from "@/components/home/ProjectCard";
+import { ParticleBackground } from "@/components/home/ParticleBackground";
+import { ThemeToggle } from "@/components/home/ThemeToggle";
 
 type ProjectSummary = { id: string; title: string };
 
+const BUILTIN_DEMO_PROJECT: ProjectSummary = {
+  id: "proj_001",
+  title: "春日轨道 第一章",
+};
+
+function withBuiltinDemo(projects: ProjectSummary[]) {
+  return [
+    BUILTIN_DEMO_PROJECT,
+    ...projects.filter((project) => project.id !== BUILTIN_DEMO_PROJECT.id),
+  ];
+}
+
 export default function HomePage() {
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([BUILTIN_DEMO_PROJECT]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/projects/")
-      .then((r) => r.json())
-      .then((data) => setProjects(data.projects))
-      .catch(() => setProjects([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadProjects() {
+      try {
+        const response = await fetch("/api/projects/");
+        if (!response.ok) {
+          throw new Error("项目列表加载失败");
+        }
+        const data = await response.json();
+        if (!cancelled) {
+          setProjects(withBuiltinDemo(data.projects ?? []));
+        }
+      } catch {
+        if (!cancelled) {
+          setProjects([BUILTIN_DEMO_PROJECT]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadProjects();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12">
-      <header className="mb-12">
-        <h1 className="text-3xl font-bold tracking-tight">Galgame Translater</h1>
-        <p className="mt-2 text-[#8888a0]">
-          Upload a novel, generate a playable visual novel demo, edit online, and export to Ren&apos;Py.
-        </p>
-      </header>
-
-      <section className="mb-12 flex flex-wrap gap-4">
-        <a
-          href="/upload"
-          className="inline-flex items-center gap-2 rounded-lg bg-[#6688ff] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#5577ee]"
-        >
-          + New Project
-        </a>
-        <a
-          href="/project/proj_001"
-          className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a3a] bg-[#1a1a25] px-5 py-2.5 text-sm font-medium text-[#e8e8f0] transition-colors hover:border-[#6688ff]"
-        >
-          Play Demo
-        </a>
-        <a
-          href="/project/proj_001/edit"
-          className="inline-flex items-center gap-2 rounded-lg border border-[#2a2a3a] bg-[#1a1a25] px-5 py-2.5 text-sm font-medium text-[#e8e8f0] transition-colors hover:border-[#6688ff]"
-        >
-          Edit Demo
-        </a>
-      </section>
-
-      <section>
-        <h2 className="mb-4 text-lg font-semibold">Projects</h2>
-        {loading ? (
-          <p className="text-sm text-[#555568] animate-pulse">Loading...</p>
-        ) : projects.length === 0 ? (
-          <p className="text-sm text-[#8888a0]">No projects yet. Create one above.</p>
-        ) : (
-          <div className="space-y-2">
-            {projects.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between rounded-lg border border-[#2a2a3a] bg-[#13131a] px-4 py-3"
-              >
-                <div>
-                  <span className="font-medium text-[#e8e8f0]">{p.title}</span>
-                  <span className="ml-2 text-xs text-[#555568]">{p.id}</span>
-                </div>
-                <div className="flex gap-2">
-                  <a
-                    href={`/project/${p.id}`}
-                    className="rounded px-2.5 py-1 text-xs text-[#6688ff] transition-colors hover:bg-[#6688ff]/20"
-                  >
-                    Play
-                  </a>
-                  <a
-                    href={`/project/${p.id}/edit`}
-                    className="rounded px-2.5 py-1 text-xs text-[#8888a0] transition-colors hover:bg-[#1a1a25] hover:text-[#e8e8f0]"
-                  >
-                    Edit
-                  </a>
-                </div>
-              </div>
-            ))}
+    <>
+      <ParticleBackground />
+      <ThemeToggle />
+      <div className="relative z-10 mx-auto max-w-5xl px-6 py-16">
+        {/* Brand header */}
+        <header className="mb-16 text-center">
+          <h1 className="font-[family-name:var(--font-display)] text-[clamp(2rem,5vw,3.5rem)] font-bold leading-tight tracking-wide text-[var(--text-primary)]">
+            夜樱工坊
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-[var(--text-secondary)]">
+            上传你喜爱的故事，AI 将自动生成精致的视觉小说场景。
+            搭配动态背景和角色立绘，打造属于你的 Galgame。
+          </p>
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <Link
+              href="/upload"
+              className="inline-flex items-center gap-2 rounded-xl bg-sakura-pink px-6 py-3 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-sakura-deep hover:shadow-[0_0_24px_var(--accent-glow)]"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              新项目
+            </Link>
           </div>
-        )}
-      </section>
+        </header>
 
-      <footer className="mt-16 border-t border-[#2a2a3a] pt-6 text-center text-xs text-[#555568]">
-        Galgame Translater v0.1.0 &mdash; Novel to Visual Novel Pipeline
-      </footer>
-    </div>
+        {/* Projects section */}
+        <section>
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--text-primary)]">
+              我的作品
+            </h2>
+            {!loading && (
+              <span className="text-xs text-[var(--text-muted)]">
+                {projects.length} 个项目
+              </span>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse rounded-xl border border-[var(--bg-border)] bg-[var(--bg-card)] p-5">
+                  <div className="mb-3 h-5 w-2/3 rounded bg-[var(--bg-panel)]" />
+                  <div className="mb-4 h-3 w-1/3 rounded bg-[var(--bg-panel)]" />
+                  <div className="flex gap-2">
+                    <div className="h-8 w-16 rounded-lg bg-[var(--bg-panel)]" />
+                    <div className="h-8 w-16 rounded-lg bg-[var(--bg-panel)]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[var(--bg-border)] bg-[var(--bg-card)]/50 px-8 py-16 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-sakura-pink/10">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-sakura-pink"><path d="M12 5v14M5 12h14"/></svg>
+              </div>
+              <p className="text-base text-[var(--text-secondary)]">还没有项目</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">点击上方按钮创建你的第一个 Galgame</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {projects.map((p) => (
+                <ProjectCard key={p.id} id={p.id} title={p.title} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Footer */}
+        <footer className="mt-20 border-t border-[var(--bg-border)] pt-8 text-center">
+          <p className="text-xs text-[var(--text-muted)]">
+            Galgame Translater <span className="text-sakura-pink">v0.1.0</span>
+          </p>
+        </footer>
+      </div>
+    </>
   );
 }
