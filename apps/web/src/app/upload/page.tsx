@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/home/ThemeToggle";
+import { BgImage } from "@/components/BgImage";
 
 type UploadStatus = "idle" | "uploading" | "parsing" | "done" | "error";
 
@@ -75,6 +76,7 @@ export default function UploadPage() {
 
   return (
     <>
+      <BgImage />
       <ThemeToggle />
       <div className="relative z-10 mx-auto max-w-2xl px-6 py-16">
         {/* Back link */}

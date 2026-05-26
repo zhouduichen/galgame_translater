@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ProjectCard } from "@/components/home/ProjectCard";
 import { ThemeToggle } from "@/components/home/ThemeToggle";
+import { BgImage } from "@/components/BgImage";
 
 type ProjectSummary = { id: string; title: string };
 
@@ -55,6 +56,7 @@ export default function StudioPage() {
 
   return (
     <>
+      <BgImage />
       <ThemeToggle />
       <div className="relative z-10 mx-auto max-w-5xl px-6 py-16">
         {/* Back link */}
