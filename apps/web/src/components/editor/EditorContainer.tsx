@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/stores/editorStore";
 import { SceneTree } from "./SceneTree";
 import { NodeCard } from "./NodeCard";
 import type { Project, StoryNode } from "@/lib/types";
 import { getNodeIdsInOrder } from "@/lib/types";
+import { api } from "@/lib/api";
+
+type JobStatus = "pending" | "running" | "completed" | "failed";
+type GenJobInfo = { job_id: string; status: JobStatus; job_type: string; error?: string | null };
+type GenProgress = {
+  running: boolean;
+  total: number;
+  completed: number;
+  failed: number;
+  errors: string[];
+};
 
 const NODE_TYPE_LABELS: Record<string, string> = {
   dialogue: "对白",
@@ -23,6 +34,15 @@ type Props = {
 
 export function EditorContainer({ project, onBackToPlayer }: Props) {
   const store = useEditorStore();
+  const [genProgress, setGenProgress] = useState<GenProgress | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     store.loadProject(project);
@@ -66,6 +86,101 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
 
   const characters = store.project?.characters ?? {};
 
+  async function handleGenerateAssets() {
+    setGenProgress({ running: true, total: 0, completed: 0, failed: 0, errors: [] });
+
+    try {
+      const res = await fetch(`/api/projects/${project.project_id}/generate-assets`, { method: "POST" });
+      if (!res.ok) throw new Error("提交失败");
+      const data = await res.json();
+      const total: number = data.count;
+
+      setGenProgress((prev) => (prev ? { ...prev, total } : null));
+
+      // Poll job status
+      const pollInterval = setInterval(async () => {
+        try {
+          const jobsRes = await fetch(`/api/projects/${project.project_id}/jobs`);
+          if (!jobsRes.ok) return;
+          const allJobs: GenJobInfo[] = await jobsRes.json();
+          const genJobs = allJobs.filter((j: GenJobInfo) => j.job_type === "generate_asset");
+
+          let completed = 0;
+          let failed = 0;
+          const errors: string[] = [];
+
+          for (const j of genJobs) {
+            if (j.status === "completed") completed++;
+            else if (j.status === "failed") {
+              failed++;
+              if (j.error) errors.push(j.error);
+            }
+          }
+
+          setGenProgress((prev) => (prev ? { ...prev, completed, failed, errors } : null));
+
+          if (completed + failed >= total) {
+            clearInterval(pollInterval);
+            pollingRef.current = null;
+
+            // Refresh project to get updated asset_resources
+            const updatedProject = await api.getProject(project.project_id);
+            store.loadProject(updatedProject);
+
+            if (failed === 0) {
+              setTimeout(() => setGenProgress(null), 2000);
+            }
+          }
+        } catch {
+          // ignore poll errors
+        }
+      }, 2000);
+
+      pollingRef.current = pollInterval;
+    } catch {
+      setGenProgress(null);
+    }
+  }
+
+  async function handleRetryFailed() {
+    await handleGenerateAssets();
+  }
+
+  function renderGenerateButton() {
+    if (genProgress?.running) {
+      const pct =
+        genProgress.total > 0 ? `${genProgress.completed + genProgress.failed}/${genProgress.total}` : "";
+      return (
+        <button className="rounded bg-sakura-pink/20 px-3 py-1.5 text-xs text-sakura-pink cursor-wait" disabled>
+          {genProgress.failed > 0 ? `素材生成 ${pct}` : `生成中 ${pct}`}
+        </button>
+      );
+    }
+
+    if (genProgress && genProgress.failed > 0) {
+      return (
+        <>
+          <button
+            className="rounded bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--error-red)] transition-colors hover:bg-[var(--error-red)]/10"
+            onClick={handleRetryFailed}
+          >
+            重试失败素材
+          </button>
+          <span className="text-xs text-[var(--error-red)]">{genProgress.failed} 个失败</span>
+        </>
+      );
+    }
+
+    return (
+      <button
+        className="rounded bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-sakura-pink hover:text-sakura-pink"
+        onClick={handleGenerateAssets}
+      >
+        生成立绘/背景
+      </button>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-[var(--bg-deep)]">
       {/* 左侧：场景树 */}
@@ -101,6 +216,7 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
             >
               播放
             </button>
+            {renderGenerateButton()}
             <button
               className={`rounded px-3 py-1.5 text-xs transition-colors ${
                 dirty

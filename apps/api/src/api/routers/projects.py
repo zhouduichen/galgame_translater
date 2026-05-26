@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from project_model.mock_data import MOCK_PARSE_DRAFT, MOCK_PROJECT
-from project_model.schema import AdaptationProject, GenerationJob, JobStatus, ParseDraft
+from project_model.schema import AdaptationProject, Emotion, GenerationJob, JobStatus, ParseDraft
 
 from ..database import (
     SessionLocal,
+    delete_project,
     load_draft,
     load_project,
     save_draft,
@@ -44,6 +46,17 @@ class UpdateDraftRequest(BaseModel):
 @router.get("/")
 def list_projects():
     """List all projects."""
+    return _list_projects()
+
+
+@router.get("")
+def list_projects_no_slash() -> dict:
+    """List all projects (without trailing slash)."""
+    return _list_projects()
+
+
+def _list_projects() -> dict:
+    """Shared implementation for listing projects."""
     with SessionLocal() as session:
         from ..database import ProjectRow
 
@@ -64,7 +77,7 @@ def create_project(body: CreateProjectRequest) -> dict:
     """Create a new empty project."""
     now = datetime.utcnow().isoformat() + "Z"
     project = AdaptationProject(
-        project_id=f"proj_{int(datetime.utcnow().timestamp())}",
+        project_id=f"proj_{uuid4().hex}",
         title=body.title,
         author=body.author,
         characters={},
@@ -97,6 +110,8 @@ def get_project(project_id: str) -> AdaptationProject:
 
 @router.put("/{project_id}")
 def update_project(project_id: str, project: AdaptationProject) -> dict:
+    if project.project_id != project_id:
+        raise HTTPException(400, "Path project_id does not match request body project_id")
     with SessionLocal() as session:
         save_project(session, project)
     return {"ok": True}
@@ -109,7 +124,7 @@ def update_project(project_id: str, project: AdaptationProject) -> dict:
 def parse_novel(project_id: str, body: ParseRequest) -> GenerationJob:
     """Submit a novel for LLM parsing. Creates a job; worker processes it async."""
     job = GenerationJob(
-        job_id=f"job_{project_id}_parse",
+        job_id=f"job_{project_id}_parse_{uuid4().hex}",
         project_id=project_id,
         job_type="parse_draft",
         payload={
@@ -157,7 +172,7 @@ def list_jobs(project_id: str) -> list[GenerationJob]:
             session.query(GenerationJobRow)
             .filter(GenerationJobRow.project_id == project_id)
             .order_by(GenerationJobRow.created_at.desc())
-            .limit(20)
+            .limit(200)
             .all()
         )
     return [
@@ -175,7 +190,72 @@ def list_jobs(project_id: str) -> list[GenerationJob]:
     ]
 
 
+@router.delete("/{project_id}")
+def delete_project_endpoint(project_id: str) -> dict:
+    """Delete a project and all its drafts, jobs, and exports."""
+    with SessionLocal() as session:
+        found = delete_project(session, project_id)
+    if not found:
+        raise HTTPException(404, "Project not found")
+    return {"ok": True}
+
+
 @router.get("/{project_id}/export/{fmt}")
 def export_project(project_id: str, fmt: str) -> dict:
     """Trigger Ren'Py or web export."""
     return {"ok": True, "export_id": f"export_{project_id}_{fmt}", "format": fmt}
+
+
+@router.post("/{project_id}/generate-assets")
+def generate_assets(project_id: str) -> dict:
+    """Trigger asset generation for all characters + scenes. Creates individual jobs."""
+    with SessionLocal() as session:
+        project = load_project(session, project_id)
+    if project is None:
+        raise HTTPException(404, "Project not found")
+
+    jobs = []
+    now = int(datetime.utcnow().timestamp())
+
+    # Generate backgrounds for each scene
+    for scene_id, scene in project.scenes.items():
+        bg_desc = scene.visual_description or scene.description
+        if bg_desc:
+            job = GenerationJob(
+                job_id=f"job_{project_id}_bg_{scene_id}_{now}",
+                project_id=project_id,
+                job_type="generate_asset",
+                payload={
+                    "target_type": "background",
+                    "description": bg_desc,
+                    "scene_id": scene_id,
+                    "project_id": project_id,
+                },
+            )
+            jobs.append(job)
+
+    # Generate sprites for common emotions per character
+    for char_id, char in project.characters.items():
+        # Build rich visual description from appearance + personality
+        visual_desc = char.appearance or char.description
+        for emotion in (Emotion.neutral, Emotion.happy, Emotion.sad, Emotion.angry, Emotion.surprised, Emotion.shy):
+            job = GenerationJob(
+                job_id=f"job_{project_id}_sprite_{char_id}_{emotion.value}_{now}",
+                project_id=project_id,
+                job_type="generate_asset",
+                payload={
+                    "target_type": "character_sprite",
+                    "character_id": char_id,
+                    "character_name": char.name,
+                    "character_description": visual_desc,
+                    "emotion": emotion.value,
+                    "project_id": project_id,
+                },
+            )
+            jobs.append(job)
+
+    with SessionLocal() as session:
+        for job in jobs:
+            save_job(session, job)
+
+    return {"ok": True, "job_ids": [j.job_id for j in jobs], "count": len(jobs)}

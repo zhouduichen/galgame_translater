@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,30 +15,47 @@ load_dotenv()
 
 from .tasks import TASK_HANDLERS
 
-POLL_INTERVAL = 5  # seconds
-DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "api" / "data"
+POLL_INTERVAL = 5  # seconds — only used when idle
+MAX_WORKERS = int(os.environ.get("WORKER_MAX_THREADS", "3"))
+DATA_DIR = Path(os.environ.get("GALGAME_DB_DIR", str(Path(__file__).resolve().parent.parent.parent.parent / "api" / "data")))
+BATCH_SIZE = 10
 
 
-def _poll() -> list[dict]:
-    """Read pending jobs from the SQLite DB directly."""
+def _claim_pending_jobs(limit: int = BATCH_SIZE) -> list[dict]:
     db_path = DATA_DIR / "galgame.db"
     if not db_path.exists():
         return []
 
     import sqlite3
 
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=30)
     conn.row_factory = sqlite3.Row
-    cursor = conn.execute(
-        """SELECT id, project_id, job_type, payload, result
-           FROM generation_jobs
-           WHERE status = 'pending'
-           ORDER BY created_at ASC
-           LIMIT 5"""
-    )
-    rows = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    return rows
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = [
+            dict(r)
+            for r in conn.execute(
+                """SELECT id, project_id, job_type, payload, result
+                   FROM generation_jobs
+                   WHERE status = 'pending'
+                   ORDER BY created_at ASC
+                   LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        ]
+        now = datetime.now(timezone.utc).isoformat()
+        for row in rows:
+            conn.execute(
+                "UPDATE generation_jobs SET status = 'running', progress = 0.0, updated_at = ? WHERE id = ? AND status = 'pending'",
+                (now, row["id"]),
+            )
+        conn.commit()
+        return rows
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def _update_job(job_id: str, **kwargs):
@@ -47,48 +66,75 @@ def _update_job(job_id: str, **kwargs):
     sets = ", ".join(f"{k} = ?" for k in kwargs)
     conn.execute(
         f"UPDATE generation_jobs SET {sets}, updated_at = ? WHERE id = ?",
-        [*kwargs.values(), datetime.utcnow().isoformat() + "Z", job_id],
+        [*kwargs.values(), datetime.now(timezone.utc).isoformat(), job_id],
     )
     conn.commit()
     conn.close()
 
 
+def _job_result_failed(result: object) -> bool:
+    return isinstance(result, dict) and result.get("status") == "error"
+
+
+def _process_one(job: dict) -> None:
+    """Process a single job. Updates DB on completion/failure."""
+    handler = TASK_HANDLERS.get(job["job_type"])
+    if handler is None:
+        print(f"[worker] Unknown job type: {job['job_type']}")
+        _update_job(job["id"], status="failed", error=f"Unknown job type: {job['job_type']}")
+        return
+
+    print(f"[worker] Processing {job['id']} ({job['job_type']})")
+
+    try:
+        payload = json.loads(job["payload"]) if isinstance(job["payload"], str) else job["payload"]
+        payload["job_id"] = job["id"]
+        result = handler(payload)
+        if _job_result_failed(result):
+            _update_job(
+                job["id"],
+                status="failed",
+                progress=1.0,
+                result=json.dumps(result, ensure_ascii=False),
+                error=str(result.get("error", "Task returned error status")),
+            )
+            print(f"[worker] Failed {job['id']}: {result.get('error', 'Task returned error status')}")
+        else:
+            _update_job(
+                job["id"],
+                status="completed",
+                progress=1.0,
+                result=json.dumps(result, ensure_ascii=False),
+            )
+            print(f"[worker] Completed {job['id']}")
+    except Exception as e:
+        print(f"[worker] Failed {job['id']}: {e}")
+        _update_job(job["id"], status="failed", error=str(e))
+
+
 def main():
-    print(f"[worker] Starting. Polling every {POLL_INTERVAL}s...")
-    while True:
-        try:
-            jobs = _poll()
-            for job in jobs:
-                handler = TASK_HANDLERS.get(job["job_type"])
-                if handler is None:
-                    print(f"[worker] Unknown job type: {job['job_type']}")
-                    _update_job(job["id"], status="failed", error=f"Unknown job type: {job['job_type']}")
+    print(f"[worker] Starting. Max workers: {MAX_WORKERS}. Poll interval (idle): {POLL_INTERVAL}s.")
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        while True:
+            try:
+                jobs = _claim_pending_jobs()
+                if jobs:
+                    futures = {executor.submit(_process_one, job): job["id"] for job in jobs}
+                    for future in as_completed(futures):
+                        try:
+                            future.result()
+                        except Exception as e:
+                            print(f"[worker] Unhandled error in job {futures[future]}: {e}")
+                    # Immediately check for more work — no sleep when work was found
                     continue
-
-                print(f"[worker] Processing {job['id']} ({job['job_type']})")
-                _update_job(job["id"], status="running", progress=0.0)
-
-                try:
-                    payload = json.loads(job["payload"]) if isinstance(job["payload"], str) else job["payload"]
-                    result = handler(payload)
-                    _update_job(
-                        job["id"],
-                        status="completed",
-                        progress=1.0,
-                        result=json.dumps(result, ensure_ascii=False),
-                    )
-                    print(f"[worker] Completed {job['id']}")
-                except Exception as e:
-                    print(f"[worker] Failed {job['id']}: {e}")
-                    _update_job(job["id"], status="failed", error=str(e))
-
-            time.sleep(POLL_INTERVAL)
-        except KeyboardInterrupt:
-            print("\n[worker] Shutting down.")
-            break
-        except Exception as e:
-            print(f"[worker] Error: {e}")
-            time.sleep(POLL_INTERVAL)
+                time.sleep(POLL_INTERVAL)
+            except KeyboardInterrupt:
+                print("\n[worker] Shutting down. Waiting for in-flight jobs...")
+                executor.shutdown(wait=True, cancel_futures=False)
+                break
+            except Exception as e:
+                print(f"[worker] Error: {e}")
+                time.sleep(POLL_INTERVAL)
 
 
 if __name__ == "__main__":

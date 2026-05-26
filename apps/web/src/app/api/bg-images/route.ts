@@ -2,7 +2,16 @@ import fs from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 
-const BG_DIR = path.resolve(process.cwd(), "..", "..", "背景图");
+function findBgDir(): string | null {
+  if (process.env.BG_IMAGES_DIR) return process.env.BG_IMAGES_DIR;
+  const fromRepo = path.resolve(process.cwd(), "..", "..", "背景图");
+  if (fs.existsSync(fromRepo)) return fromRepo;
+  const fromCwd = path.resolve(process.cwd(), "背景图");
+  if (fs.existsSync(fromCwd)) return fromCwd;
+  return null;
+}
+
+const BG_DIR = findBgDir();
 
 const MIME: Record<string, string> = {
   jpg: "image/jpeg",
@@ -13,18 +22,31 @@ const MIME: Record<string, string> = {
 };
 
 export async function GET(request: NextRequest) {
+  if (!BG_DIR) {
+    return NextResponse.json({ images: [] });
+  }
+
+  const bgDir: string = BG_DIR;
+
   const file = request.nextUrl.searchParams.get("file");
 
   // Serve a specific image file
   if (file) {
-    const decoded = decodeURIComponent(file);
-    const filePath = path.join(BG_DIR, decoded);
-    if (!filePath.startsWith(BG_DIR)) {
+    function safeImagePath(f: string, base: string): string | null {
+      const decoded = decodeURIComponent(f);
+      const filePath = path.resolve(base, decoded);
+      const relative = path.relative(base, filePath);
+      if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+      return filePath;
+    }
+
+    const filePath = safeImagePath(file, bgDir);
+    if (!filePath) {
       return new NextResponse(null, { status: 404 });
     }
     try {
       const buffer = fs.readFileSync(filePath);
-      const ext = path.extname(decoded).slice(1).toLowerCase();
+      const ext = path.extname(filePath).slice(1).toLowerCase();
       return new NextResponse(buffer, {
         headers: { "Content-Type": MIME[ext] ?? "application/octet-stream" },
       });
@@ -35,7 +57,7 @@ export async function GET(request: NextRequest) {
 
   // List all images
   try {
-    const files = fs.readdirSync(BG_DIR).filter((f) =>
+    const files = fs.readdirSync(bgDir).filter((f) =>
       /\.(jpg|jpeg|png|webp|gif)$/i.test(f)
     );
     return NextResponse.json({

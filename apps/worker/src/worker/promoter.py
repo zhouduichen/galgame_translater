@@ -68,6 +68,7 @@ def promote(draft: dict[str, Any], project_id: str | None = None) -> AdaptationP
             name=c.get("name", cid),
             role=c.get("role", "supporting"),
             description=c.get("description", ""),
+            appearance=c.get("appearance", ""),
             traits=c.get("traits", []),
             color=c.get("color"),
             asset_ids={},
@@ -100,15 +101,23 @@ def promote(draft: dict[str, Any], project_id: str | None = None) -> AdaptationP
         # Validate references within the scene
         _validate_node_refs(nodes, scene_id, all_warnings)
 
-        # Extract background_id from background_cue if present
-        bg_cue = raw_scene.get("background_cue")
-        bg_id = bg_cue.get("asset_id") if isinstance(bg_cue, dict) else None
+        # Don't set background_id from draft cues — they're placeholder IDs
+        # that don't exist in asset_resources yet. Real background_id is set
+        # by handle_generate_asset when image generation completes.
+
+        # Build visual description: prefer step-3 visual_description, fall back to background_cue
+        visual_desc = raw_scene.get("visual_description", "")
+        if not visual_desc:
+            bg_cue = raw_scene.get("background_cue", {})
+            if isinstance(bg_cue, dict):
+                visual_desc = bg_cue.get("description", "")
 
         scenes[scene_id] = Scene(
             scene_id=scene_id,
             title=raw_scene.get("title", scene_id),
             description=raw_scene.get("description", ""),
-            background_id=bg_id,
+            visual_description=visual_desc,
+            background_id=None,
             nodes=nodes,
         )
 

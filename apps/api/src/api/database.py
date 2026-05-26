@@ -17,7 +17,9 @@ from project_model.schema import (
     ParseDraft,
 )
 
-_DEFAULT_DB = Path(__file__).resolve().parent.parent.parent / "data" / "galgame.db"
+_DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+_DEFAULT_DB = _DEFAULT_DATA_DIR / "galgame.db"
+DEFAULT_GENERATED_DIR = _DEFAULT_DATA_DIR / "generated"
 DATABASE_URL = os.getenv("GALGAME_DATABASE_URL", f"sqlite:///{_DEFAULT_DB.as_posix()}")
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
@@ -83,13 +85,15 @@ def init_db():
 
 
 def save_project(session: Session, project: AdaptationProject) -> None:
+    existing = session.get(ProjectRow, project.project_id)
+    now = datetime.utcnow()
     row = ProjectRow(
         id=project.project_id,
         title=project.title,
         author=project.author,
         data=project.model_dump_json(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=existing.created_at if existing else now,
+        updated_at=now,
     )
     session.merge(row)
     session.commit()
@@ -100,6 +104,19 @@ def load_project(session: Session, project_id: str) -> AdaptationProject | None:
     if row is None:
         return None
     return AdaptationProject.model_validate_json(row.data)
+
+
+def delete_project(session: Session, project_id: str) -> bool:
+    """Delete a project and all related data. Returns True if found."""
+    row = session.get(ProjectRow, project_id)
+    if row is None:
+        return False
+    session.query(ParseDraftRow).filter(ParseDraftRow.project_id == project_id).delete()
+    session.query(GenerationJobRow).filter(GenerationJobRow.project_id == project_id).delete()
+    session.query(ExportRow).filter(ExportRow.project_id == project_id).delete()
+    session.delete(row)
+    session.commit()
+    return True
 
 
 def save_draft(session: Session, draft: ParseDraft) -> None:
@@ -125,6 +142,8 @@ def load_draft(session: Session, project_id: str) -> ParseDraft | None:
 
 
 def save_job(session: Session, job: GenerationJob) -> None:
+    existing = session.get(GenerationJobRow, job.job_id)
+    now = datetime.utcnow()
     row = GenerationJobRow(
         id=job.job_id,
         project_id=job.project_id,
@@ -134,8 +153,8 @@ def save_job(session: Session, job: GenerationJob) -> None:
         payload=json.dumps(job.payload),
         result=json.dumps(job.result),
         error=job.error,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=existing.created_at if existing else now,
+        updated_at=now,
     )
     session.merge(row)
     session.commit()

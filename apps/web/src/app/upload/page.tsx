@@ -4,8 +4,30 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/home/ThemeToggle";
 import { BgImage } from "@/components/BgImage";
+import { api } from "@/lib/api";
 
-type UploadStatus = "idle" | "uploading" | "parsing" | "done" | "error";
+type UploadStatus = "idle" | "uploading" | "parsing" | "generating" | "done" | "error";
+
+type JobStatus = "pending" | "running" | "completed" | "failed";
+type GenerationJob = {
+  job_id: string;
+  status: JobStatus;
+  job_type: string;
+  progress?: number | null;
+  error?: string | null;
+};
+
+type GenProgress = {
+  total: number;
+  completed: number;
+  failed: number;
+  running: number;
+  errors: string[];
+};
+
+function findJob(jobs: GenerationJob[], jobId: string): GenerationJob | null {
+  return jobs.find((job) => job.job_id === jobId) ?? null;
+}
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -13,6 +35,9 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [genProgress, setGenProgress] = useState<GenProgress | null>(null);
+  const [parseProgress, setParseProgress] = useState(0);
+  const [workerWarning, setWorkerWarning] = useState(false);
 
   const handleFile = useCallback((f: File | null) => {
     setError(null);
@@ -27,6 +52,9 @@ export default function UploadPage() {
       return;
     }
     setFile(f);
+    setGenProgress(null);
+    setParseProgress(0);
+    setWorkerWarning(false);
   }, []);
 
   async function handleUpload() {
@@ -55,19 +83,77 @@ export default function UploadPage() {
       if (!parseRes.ok) throw new Error("提交解析任务失败");
       const { job_id } = await parseRes.json();
 
+      let completed = false;
+      let failedError: string | null = null;
       let attempts = 0;
+
       while (attempts < 120) {
         const jobsRes = await fetch(`/api/projects/${id}/jobs`);
-        const jobs = await jobsRes.json();
-        const job = jobs.find((j: any) => j.job_id === job_id);
-        if (job?.status === "completed" || job?.status === "failed") break;
+        if (!jobsRes.ok) throw new Error("查询解析任务失败");
+        const jobs: GenerationJob[] = await jobsRes.json();
+        const job = findJob(jobs, job_id);
+
+        if (job?.progress != null) {
+          setParseProgress(job.progress * 100);
+        }
+
+        if (job?.status === "completed") {
+          setParseProgress(100);
+          completed = true;
+          break;
+        }
+        if (job?.status === "failed") {
+          failedError = job.error || "解析任务失败";
+          break;
+        }
+
         await new Promise((r) => setTimeout(r, 2000));
         attempts++;
       }
 
+      if (failedError) throw new Error(failedError);
+      if (!completed) throw new Error("解析任务超时，请确认 Worker 是否正在运行");
+
+      // Parse done — show result immediately. Asset generation fires in background.
+      await api.getProject(id);
+      setProjectId(id);
       setStatus("done");
-    } catch (e: any) {
-      setError(e.message);
+
+      (async () => {
+        try {
+          const genRes = await fetch(`/api/projects/${id}/generate-assets`, { method: "POST" });
+          if (!genRes.ok) return;
+          const { count } = await genRes.json();
+          setGenProgress({ total: count, completed: 0, failed: 0, running: 0, errors: [] });
+
+          let staleTicks = 0;
+          let lastDone = 0;
+          for (let i = 0; i < 1800; i++) {
+            await new Promise((r) => setTimeout(r, 1000));
+            try {
+              const jobsRes = await fetch(`/api/projects/${id}/jobs`);
+              if (!jobsRes.ok) continue;
+              const allJobs: GenerationJob[] = await jobsRes.json();
+              const genJobs = allJobs.filter((j: GenerationJob) => j.job_type === "generate_asset");
+              let completed = 0, failed = 0, running = 0;
+              const errors: string[] = [];
+              for (const j of genJobs) {
+                if (j.status === "completed") completed++;
+                else if (j.status === "failed") { failed++; if (j.error) errors.push(j.error); }
+                else if (j.status === "running") running++;
+              }
+              setGenProgress({ total: count, completed, failed, running, errors });
+              const done = completed + failed;
+              if (done > lastDone) { lastDone = done; staleTicks = 0; }
+              else { staleTicks++; }
+              if (staleTicks >= 10) setWorkerWarning(true);
+              if (done >= count) break;
+            } catch { /* ignore transient poll errors */ }
+          }
+        } catch { /* background gen failed silently */ }
+      })();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "上传或解析失败");
       setStatus("error");
     }
   }
@@ -156,7 +242,26 @@ export default function UploadPage() {
         )}
         {status === "parsing" && (
           <div className="mt-6 animate-[fadeIn_0.3s_ease-out]">
-            <ProgressBar label="AI 解析中（约 2-3 分钟）..." animate />
+            <ProgressBar
+              label={`AI 解析中... ${Math.round(parseProgress)}%`}
+              animate={parseProgress < 100}
+              value={parseProgress}
+            />
+          </div>
+        )}
+        {status === "generating" && genProgress && (
+          <div className="mt-6 animate-[fadeIn_0.3s_ease-out]">
+            <ProgressBar
+              label={`素材生成中：已完成 ${genProgress.completed} / 运行中 ${genProgress.running} / 总数 ${genProgress.total}`}
+              sublabel={genProgress.failed > 0 ? `${genProgress.failed} 个失败` : undefined}
+              animate={genProgress.completed + genProgress.failed < genProgress.total}
+              value={genProgress.total > 0 ? ((genProgress.completed + genProgress.failed) / genProgress.total) * 100 : 0}
+            />
+            {workerWarning && (
+              <p className="mt-3 text-sm text-amber-400">
+                请确保 Worker 和 ComfyUI 已启动（参考 README 启动步骤）
+              </p>
+            )}
           </div>
         )}
 
@@ -169,6 +274,22 @@ export default function UploadPage() {
             <p className="font-[family-name:var(--font-display)] text-xl font-semibold text-success-green">
               解析完成！
             </p>
+            {genProgress && genProgress.total > 0 && (
+              <div className="mx-auto max-w-sm">
+                <ProgressBar
+                  label={genProgress.completed + genProgress.failed >= genProgress.total
+                    ? `素材生成完成：${genProgress.completed}/${genProgress.total}`
+                    : `素材生成中：已完成 ${genProgress.completed} / 运行中 ${genProgress.running} / 总数 ${genProgress.total}`}
+                  sublabel={genProgress.failed > 0 ? `${genProgress.failed} 个失败` : undefined}
+                  value={genProgress.total > 0 ? ((genProgress.completed + genProgress.failed) / genProgress.total) * 100 : 0}
+                />
+                {workerWarning && genProgress.completed + genProgress.failed < genProgress.total && (
+                  <p className="mt-3 text-sm text-amber-400">
+                    请确保 Worker 和 ComfyUI 已启动（参考 README 启动步骤）
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex justify-center gap-3">
               <Link
                 href={`/project/${projectId}`}
@@ -190,7 +311,7 @@ export default function UploadPage() {
   );
 }
 
-function ProgressBar({ label, animate }: { label: string; animate?: boolean }) {
+function ProgressBar({ label, sublabel, animate, value }: { label: string; sublabel?: string; animate?: boolean; value?: number }) {
   const [dots, setDots] = useState("");
 
   useEffect(() => {
@@ -203,15 +324,19 @@ function ProgressBar({ label, animate }: { label: string; animate?: boolean }) {
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-sm">
+      <div className="mb-1 flex items-center justify-between text-sm">
         <span className="text-[var(--text-secondary)]">{label}</span>
-        {animate && <span className="text-xs text-[var(--text-muted)]">处理中{dots}</span>}
+        <div className="flex items-center gap-2">
+          {sublabel && <span className="text-xs text-[var(--error-red)]">{sublabel}</span>}
+          {animate && <span className="text-xs text-[var(--text-muted)]">处理中{dots}</span>}
+        </div>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-deep)]">
         <div
           className={`h-full rounded-full bg-gradient-to-r from-sakura-pink to-sakura-glow transition-all duration-500 ${
-            animate ? "w-2/3 animate-pulse" : "w-full"
+            value != null ? "" : animate ? "w-2/3 animate-pulse" : "w-full"
           }`}
+          style={value != null ? { width: `${value}%` } : undefined}
         />
       </div>
     </div>

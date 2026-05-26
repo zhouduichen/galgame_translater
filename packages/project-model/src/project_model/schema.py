@@ -92,6 +92,7 @@ class CharacterCue(BaseModel):
     name: str
     role: str = "supporting"  # protagonist, supporting, antagonist
     description: str
+    appearance: str = ""  # visual appearance for image generation
     traits: list[str] = Field(default_factory=list)
     color: str | None = None  # nameplate / text color hint
 
@@ -181,6 +182,7 @@ class Scene(BaseModel):
     scene_id: str
     title: str
     description: str = ""
+    visual_description: str = ""  # visual details for image generation prompt
     background_id: str | None = None
     """References an asset_resource_id. Falls back to placeholder if unset."""
     nodes: dict[str, Node]

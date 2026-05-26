@@ -57,7 +57,8 @@ Output ONLY valid JSON with this exact structure (no markdown, no extra text):
       "character_id": "unique_id (e.g., char_001)",
       "name": "character name",
       "role": "protagonist | supporting | antagonist",
-      "description": "2-3 sentence description",
+      "description": "2-3 sentence personality and role description",
+      "appearance": "detailed visual appearance for image generation: hair color and style, eye color, skin tone, clothing style, body type, estimated age. Be specific and concrete - this will be used to generate anime character sprites",
       "traits": ["3-5 personality traits"],
       "color": "hex color for name display (e.g., #88ccff)",
       "key_dialogue": "a notable line of dialogue that captures their voice"
@@ -68,7 +69,8 @@ Output ONLY valid JSON with this exact structure (no markdown, no extra text):
 Rules:
 - protagonist role for the main POV character (max 1-2)
 - Include all named characters with speaking roles
-- character_id must be lowercase letters and underscores only"""
+- character_id must be lowercase letters and underscores only
+- appearance MUST be a concrete visual description, not personality traits. Include physical details even if not explicitly stated in the text — infer reasonable anime-style appearance from personality and context"""
 
 # ─── Step 3: Scenes ──────────────────────────────────────────────────────────
 
@@ -90,7 +92,8 @@ Output ONLY valid JSON with this exact structure (no markdown):
     {{
       "scene_id": "scene_001",
       "title": "short scene title",
-      "description": "1-2 sentence scene summary",
+      "description": "brief narrative summary of what happens",
+      "visual_description": "detailed visual description for background image generation: time of day, weather, lighting conditions, color palette, architectural style, atmosphere, key environmental elements. Be specific and concrete — this will be used to generate anime background art",
       "location": "location name",
       "characters_present": ["character_id list"],
       "narrative_focus": "what happens / what changes",
@@ -104,7 +107,8 @@ Rules:
 - First scene should establish setting and protagonist
 - Each scene should have 5-15 VN nodes worth of content
 - Mark has_choice=true only if there's a natural branching point
-- Scenes should be in chronological order"""
+- Scenes should be in chronological order
+- visual_description MUST contain concrete visual details: lighting, weather, colors, spatial layout. Infer atmospheric details from the scene's mood"""
 
 # ─── Step 4: VN Adaptation ──────────────────────────────────────────────────
 
@@ -129,7 +133,7 @@ Output ONLY valid JSON with this exact structure (no markdown):
   "background_cue": {{
     "asset_id": "bg_{location_id}",
     "target_type": "background",
-    "description": "description of the background image needed"
+    "description": "detailed visual description for AI image generation: environment details, lighting, time of day, weather, color palette, camera angle, mood — be specific and concrete, this will be used as a Stable Diffusion prompt"
   }},
   "nodes": {{
     "node_001": {{

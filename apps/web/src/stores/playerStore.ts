@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Project, Scene, StoryNode } from "@/lib/types";
+import { getFirstNodeId } from "@/lib/types";
 import {
   applyChoiceEffects,
   getInitialStoryState,
@@ -132,18 +133,31 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   changeScene: (sceneId) => {
-    const { project } = get();
+    const { project, storyState } = get();
     if (!project) return;
     const scene = project.scenes[sceneId];
     if (!scene) return;
-    const storyState = get().storyState;
-    const firstNodeId = storyState?.currentNodeId ?? null;
+    const firstNodeId = getFirstNodeId(scene);
     const firstNode = firstNodeId ? scene.nodes[firstNodeId] ?? null : null;
     set({
       scene,
       node: firstNode,
       history: [],
-      status: firstNode ? "playing" : "error",
+      storyState: storyState
+        ? {
+            ...storyState,
+            currentSceneId: scene.scene_id,
+            currentNodeId: firstNode?.node_id ?? null,
+            visitedNodeIds: firstNode
+              ? [...storyState.visitedNodeIds, firstNode.node_id]
+              : storyState.visitedNodeIds,
+          }
+        : storyState,
+      status: firstNode
+        ? firstNode.type === "choice"
+          ? "waiting_choice"
+          : "playing"
+        : "error",
     });
   },
 

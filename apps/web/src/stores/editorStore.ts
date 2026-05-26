@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Project, Scene, StoryNode, ChoiceOption } from "@/lib/types";
+import type { Project, StoryNode, ChoiceOption } from "@/lib/types";
 import { api } from "@/lib/api";
 
 export type EditorState = {

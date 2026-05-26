@@ -24,6 +24,10 @@ export default function StudioPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([BUILTIN_DEMO_PROJECT]);
   const [loading, setLoading] = useState(true);
 
+  function handleDelete(id: string) {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -122,7 +126,12 @@ export default function StudioPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {projects.map((p) => (
-                <ProjectCard key={p.id} id={p.id} title={p.title} />
+                <ProjectCard
+                  key={p.id}
+                  id={p.id}
+                  title={p.title}
+                  onDelete={p.id === BUILTIN_DEMO_PROJECT.id ? undefined : handleDelete}
+                />
               ))}
             </div>
           )}

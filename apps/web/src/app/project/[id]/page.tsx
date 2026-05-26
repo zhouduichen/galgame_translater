@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PlayerContainer } from "@/components/player/PlayerContainer";
 import type { Project } from "@/lib/types";
+import demoProject from "@/lib/demo-project.json";
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const [project, setProject] = useState<Project | null>(null);
@@ -15,13 +16,23 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     if (!resolvedId) return;
-    fetch(`/api/projects/${resolvedId}`)
-      .then((r) => {
+
+    async function loadProject() {
+      try {
+        const r = await fetch(`/api/projects/${resolvedId}`);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data: Project) => setProject(data))
-      .catch((e) => setError(e.message));
+        const data: Project = await r.json();
+        setProject(data);
+      } catch {
+        if (resolvedId === "proj_001") {
+          setProject(demoProject as unknown as Project);
+        } else {
+          setError(`无法加载项目（ID: ${resolvedId}）。API 服务不可用。`);
+        }
+      }
+    }
+
+    loadProject();
   }, [resolvedId]);
 
   if (error) {

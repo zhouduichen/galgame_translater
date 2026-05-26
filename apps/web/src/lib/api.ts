@@ -36,4 +36,8 @@ export const api = {
       body: JSON.stringify({ novel_text: novelText }),
     });
   },
+
+  deleteProject(id: string): Promise<{ ok: boolean }> {
+    return fetchJson(`${BASE}/${id}`, { method: "DELETE" });
+  },
 };

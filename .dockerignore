@@ -1,0 +1,13 @@
+.git/
+__pycache__/
+*.pyc
+node_modules/
+.next/
+.next-dev/
+data/
+generated/
+*.bat
+*.md
+**/tests/
+**/*.log
+.DS_Store

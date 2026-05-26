@@ -1,0 +1,63 @@
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - galgame_data:/app/data
+      - galgame_generated:/app/generated
+    environment:
+      - GALGAME_DATABASE_URL=sqlite:////app/data/galgame.db
+      - GENERATED_DIR=/app/generated
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    depends_on:
+      - api
+    volumes:
+      - galgame_data:/app/data
+      - galgame_generated:/app/generated
+    environment:
+      - GALGAME_DATABASE_URL=sqlite:////app/data/galgame.db
+      - COMFYUI_BASE=http://host.docker.internal:8188
+      - GENERATED_DIR=/app/generated
+      - GALGAME_DB_DIR=/app/data
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3001:3001"
+    depends_on:
+      - api
+    volumes:
+      - type: bind
+        source: ./背景图
+        target: /app/背景图
+        read_only: true
+      - type: bind
+        source: ./视频
+        target: /app/视频
+        read_only: true
+    environment:
+      - WATCHPACK_POLLING=true
+      - API_URL=http://api:8001
+    restart: unless-stopped
+
+volumes:
+  galgame_data:
+  galgame_generated:

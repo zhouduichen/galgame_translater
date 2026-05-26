@@ -21,14 +21,24 @@ SYSTEM_PROMPT = (
 )
 
 
-def parse_novel(novel_text: str, target_length: str = "10min_demo") -> dict[str, Any]:
-    """Run the full parsing pipeline and return a ParseDraft-compatible dict."""
+def parse_novel(
+    novel_text: str,
+    target_length: str = "10min_demo",
+    on_step: "callable[[float], None] | None" = None,
+) -> dict[str, Any]:
+    """Run the full parsing pipeline and return a ParseDraft-compatible dict.
+
+    If on_step is provided, it is called with a 0.0-1.0 progress value
+    after each LLM step completes.
+    """
     # Step 1: Summarize
     print("[parser] Step 1/4: Summarizing novel...")
     summary = call_llm_json(
         SYSTEM_PROMPT,
         build_parse_draft_prompt("summarize", novel_text=novel_text, target_length=target_length),
     )
+    if on_step:
+        on_step(0.25)
 
     # Step 2: Characters
     print("[parser] Step 2/4: Extracting characters...")
@@ -41,6 +51,8 @@ def parse_novel(novel_text: str, target_length: str = "10min_demo") -> dict[str,
         ),
     )
     characters = char_result.get("characters", [])
+    if on_step:
+        on_step(0.50)
 
     # Step 3: Scenes
     print("[parser] Step 3/4: Segmenting scenes...")
@@ -53,11 +65,14 @@ def parse_novel(novel_text: str, target_length: str = "10min_demo") -> dict[str,
         ),
     )
     scenes_meta = scenes_result.get("scenes", [])
+    if on_step:
+        on_step(0.75)
 
     # Step 4: VN adaptation for each scene
     print(f"[parser] Step 4/4: Adapting {len(scenes_meta)} scenes to VN nodes...")
     adapted_scenes = []
     all_asset_cues = []
+    total_scenes = len(scenes_meta)
 
     for i, scene_meta in enumerate(scenes_meta):
         scene_id = scene_meta.get("scene_id", f"scene_{i + 1:03d}")
@@ -88,6 +103,8 @@ def parse_novel(novel_text: str, target_length: str = "10min_demo") -> dict[str,
             ),
         )
 
+        # Carry through visual_description from step 3 for image generation
+        scene_result["visual_description"] = scene_meta.get("visual_description", "")
         adapted_scenes.append(scene_result)
 
         # Extract background cue
@@ -95,14 +112,21 @@ def parse_novel(novel_text: str, target_length: str = "10min_demo") -> dict[str,
         if bg_cue:
             all_asset_cues.append(bg_cue)
 
+        # Report progress through step 4 (75% → 95% across all scenes)
+        if on_step and total_scenes > 0:
+            on_step(0.75 + ((i + 1) / total_scenes) * 0.20)
+
     # Assemble final result
     characters_simple = []
     for c in characters:
+        desc = c.get("description", "")
+        appearance = c.get("appearance", "")
         characters_simple.append({
             "character_id": c.get("character_id"),
             "name": c.get("name"),
             "role": c.get("role", "supporting"),
-            "description": c.get("description", ""),
+            "description": desc,
+            "appearance": appearance,
             "traits": c.get("traits", []),
             "color": c.get("color"),
         })
