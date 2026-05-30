@@ -1,0 +1,77 @@
+{
+  "4": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "animagine-xl-3.1.safetensors"
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["4", 1]
+    }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": ["4", 1]
+    }
+  },
+  "13": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "__BASE_PLACEHOLDER__"
+    }
+  },
+  "10": {
+    "class_type": "FaceDetailer",
+    "inputs": {
+      "image": ["13", 0],
+      "model": ["4", 0],
+      "clip": ["4", 1],
+      "vae": ["4", 2],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "bbox_detector": "bbox/eye_mouth.pt",
+      "guide_size": 512,
+      "guide_size_for": true,
+      "max_size": 1024,
+      "feather": 20,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "cycle": 1,
+      "bbox_threshold": 0.5,
+      "bbox_dilation": 10,
+      "bbox_crop_factor": 3.0,
+      "sam_detection_hint": "center-1",
+      "sam_dilation": 0,
+      "sam_threshold": 0.93,
+      "sam_bbox_expansion": 0,
+      "sam_mask_hint_threshold": 0.7,
+      "sam_mask_hint_use_negative": "False",
+      "drop_size": 10,
+      "seed": 0,
+      "steps": 20,
+      "cfg": 8.0,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35,
+      "wildcard": "face"
+    }
+  },
+  "11": {
+    "class_type": "ImageRembg",
+    "inputs": {
+      "images": ["10", 0]
+    }
+  },
+  "12": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "galgame_char_inpaint",
+      "images": ["11", 0]
+    }
+  }
+}
