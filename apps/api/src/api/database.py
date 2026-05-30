@@ -6,12 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine, text as sa_text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from project_model.schema import (
     AdaptationProject,
     ExportArtifact,
+    ExportFormat,
     GenerationJob,
     JobStatus,
     ParseDraft,
@@ -58,9 +59,11 @@ class GenerationJobRow(Base):
     job_type = Column(String, nullable=False)
     status = Column(String, default=JobStatus.pending.value)
     progress = Column(Float, default=0.0)
+    idempotency_key = Column(String, nullable=True, index=True)
     payload = Column(Text, default="{}")
     result = Column(Text, default="{}")
     error = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -79,6 +82,22 @@ class ExportRow(Base):
 
 def init_db():
     Base.metadata.create_all(engine)
+    _migrate_add_idempotency_key()
+
+
+def _migrate_add_idempotency_key():
+    """Add idempotency_key column to generation_jobs if not present (SQLite compat)."""
+    conn = engine.connect()
+    try:
+        result = conn.execute(sa_text("PRAGMA table_info(generation_jobs)"))
+        columns = [row[1] for row in result]
+        if "idempotency_key" not in columns:
+            conn.execute(sa_text(
+                "ALTER TABLE generation_jobs ADD COLUMN idempotency_key VARCHAR"
+            ))
+            conn.commit()
+    finally:
+        conn.close()
 
 
 # ─── Serialization helpers ───────────────────────────────────────────────────
@@ -141,7 +160,7 @@ def load_draft(session: Session, project_id: str) -> ParseDraft | None:
     return ParseDraft.model_validate_json(row.data)
 
 
-def save_job(session: Session, job: GenerationJob) -> None:
+def save_job(session: Session, job: GenerationJob, idempotency_key: str | None = None) -> None:
     existing = session.get(GenerationJobRow, job.job_id)
     now = datetime.utcnow()
     row = GenerationJobRow(
@@ -150,9 +169,11 @@ def save_job(session: Session, job: GenerationJob) -> None:
         job_type=job.job_type,
         status=job.status.value,
         progress=job.progress,
+        idempotency_key=idempotency_key,
         payload=json.dumps(job.payload),
         result=json.dumps(job.result),
         error=job.error,
+        retry_count=job.retry_count,
         created_at=existing.created_at if existing else now,
         updated_at=now,
     )
@@ -170,6 +191,51 @@ def load_pending_jobs(session: Session, limit: int = 5) -> list[GenerationJob]:
     return [_row_to_job(r) for r in rows]
 
 
+def _row_to_export(row: ExportRow) -> ExportArtifact:
+    return ExportArtifact(
+        export_id=row.id,
+        project_id=row.project_id,
+        format=ExportFormat(row.format),
+        file_path=row.file_path,
+        file_size_bytes=row.file_size_bytes,
+        created_at=row.created_at.isoformat() + "Z" if row.created_at else "",
+        metadata=json.loads(row.metadata_json or "{}"),
+    )
+
+
+def save_export(session: Session, export_artifact: ExportArtifact) -> None:
+    existing = session.get(ExportRow, export_artifact.export_id)
+    now = datetime.utcnow()
+    row = ExportRow(
+        id=export_artifact.export_id,
+        project_id=export_artifact.project_id,
+        format=export_artifact.format.value,
+        file_path=export_artifact.file_path,
+        file_size_bytes=export_artifact.file_size_bytes,
+        created_at=existing.created_at if existing else now,
+        metadata_json=json.dumps(export_artifact.metadata),
+    )
+    session.merge(row)
+    session.commit()
+
+
+def load_exports(session: Session, project_id: str) -> list[ExportArtifact]:
+    rows = (
+        session.query(ExportRow)
+        .filter(ExportRow.project_id == project_id)
+        .order_by(ExportRow.created_at.desc())
+        .all()
+    )
+    return [_row_to_export(r) for r in rows]
+
+
+def load_export(session: Session, export_id: str) -> ExportArtifact | None:
+    row = session.get(ExportRow, export_id)
+    if row is None:
+        return None
+    return _row_to_export(row)
+
+
 def _row_to_job(row: GenerationJobRow) -> GenerationJob:
     return GenerationJob(
         job_id=row.id,
@@ -180,4 +246,5 @@ def _row_to_job(row: GenerationJobRow) -> GenerationJob:
         payload=json.loads(row.payload or "{}"),
         result=json.loads(row.result or "{}"),
         error=row.error,
+        retry_count=row.retry_count,
     )
