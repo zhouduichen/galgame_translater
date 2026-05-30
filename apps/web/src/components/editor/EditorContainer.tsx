@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/stores/editorStore";
+import { ExportModal } from "./ExportModal";
 import { SceneTree } from "./SceneTree";
 import { NodeCard } from "./NodeCard";
 import type { Project, StoryNode } from "@/lib/types";
 import { getNodeIdsInOrder } from "@/lib/types";
 import { api } from "@/lib/api";
 
-type JobStatus = "pending" | "running" | "completed" | "failed";
+type JobStatus = "pending" | "running" | "completed" | "failed" | "permanently_failed";
 type GenJobInfo = { job_id: string; status: JobStatus; job_type: string; error?: string | null };
 type GenProgress = {
   running: boolean;
@@ -35,6 +36,7 @@ type Props = {
 export function EditorContainer({ project, onBackToPlayer }: Props) {
   const store = useEditorStore();
   const [genProgress, setGenProgress] = useState<GenProgress | null>(null);
+  const [showExport, setShowExport] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Cleanup polling on unmount
@@ -45,7 +47,20 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
   }, []);
 
   useEffect(() => {
+    // Initialize from props
     store.loadProject(project);
+
+    // Async refresh from server — ensures cross-page state consistency.
+    // E.g., assets generated on the upload page are visible here immediately.
+    api.getProject(project.project_id).then((fresh) => {
+      store.loadProject(fresh);
+    }).catch(() => {
+      // Silently fall back to props data if fetch fails
+    });
+
+    if (typeof window !== "undefined" && window.location.search.includes("export=1")) {
+      setShowExport(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.project_id]);
 
@@ -111,7 +126,7 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
 
           for (const j of genJobs) {
             if (j.status === "completed") completed++;
-            else if (j.status === "failed") {
+            else if (j.status === "failed" || j.status === "permanently_failed") {
               failed++;
               if (j.error) errors.push(j.error);
             }
@@ -217,6 +232,12 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
               播放
             </button>
             {renderGenerateButton()}
+            <button
+              className="rounded bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:text-sakura-pink"
+              onClick={() => setShowExport(true)}
+            >
+              导出
+            </button>
             <button
               className={`rounded px-3 py-1.5 text-xs transition-colors ${
                 dirty
@@ -343,6 +364,11 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
           </div>
         </div>
       </div>
+      <ExportModal
+        open={showExport}
+        projectId={project.project_id}
+        onClose={() => setShowExport(false)}
+      />
     </div>
   );
 }

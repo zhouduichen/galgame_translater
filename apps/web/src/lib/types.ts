@@ -16,6 +16,8 @@ export type AssetResource = {
   seed?: number;
   width: number;
   height: number;
+  idempotency_key?: string;
+  base_asset_id?: string;
 };
 
 // ─── Character ──────────────────────────────────────────────────────────────
@@ -171,4 +173,18 @@ export type ParseDraft = {
   synopsis: string;
   characters: Character[];
   scenes: Scene[];
+};
+
+// ─── Export ─────────────────────────────────────────────────────────────────
+
+export type ExportFormat = "renpy" | "web";
+
+export type ExportArtifact = {
+  export_id: string;
+  project_id: string;
+  format: ExportFormat;
+  file_path: string;
+  file_size_bytes: number | null;
+  created_at: string;
+  metadata: Record<string, unknown>;
 };
