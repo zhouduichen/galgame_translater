@@ -795,6 +795,10 @@ def generate_character_sprite(
     variation_index: int = 0,
     target_height: int | None = None,
     job_id: str = "",
+    # --- Incremental mode parameters ---
+    base_asset_id: str | None = None,
+    base_image_path: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Generate a character sprite with a specific emotion using Animagine XL.
 
@@ -808,32 +812,46 @@ def generate_character_sprite(
             pos_prompt, neg_prompt = _build_sprite_prompts(
                 character_name, character_desc, emotion
             )
-            workflow = _select_character_workflow()
 
-            # Inject LoRA if specified
-            if lora_name:
-                workflow = _inject_lora(workflow, lora_name, lora_weight)
+            if base_asset_id and base_image_path:
+                # ── Incremental mode: load cached base + FaceDetailer only ──
+                workflow = _select_inpaint_workflow()
+                if lora_name:
+                    workflow = _inject_lora(workflow, lora_name, lora_weight)
 
+                # Upload cached base image to ComfyUI
+                try:
+                    base_img_filename = _upload_image_to_comfyui(base_image_path)
+                except (httpx.HTTPError, FileNotFoundError) as e:
+                    print(f"[comfyui] Base image upload failed, falling back to full gen: {e}")
+                    base_asset_id = None  # trigger fallback below
+
+                if base_asset_id is not None:
+                    _set_node_str(workflow, "13", "image", base_img_filename)
+                    # Emotion-adaptive denoise
+                    denoise = _INPAINT_DENOISE_MAP.get(emotion, _INPAINT_DENOISE_DEFAULT)
+                    _set_node_float(workflow, "10", "denoise", denoise)
+
+            if base_asset_id is None:
+                # ── Full generation mode (existing behavior) ──
+                workflow = _select_character_workflow()
+                if lora_name:
+                    workflow = _inject_lora(workflow, lora_name, lora_weight)
+
+                _set_node_size(workflow, "5", RESOLUTION_CHARACTER[0], RESOLUTION_CHARACTER[1])
+                _set_node_int(
+                    workflow, "3", "seed",
+                    _character_seed(character_name, emotion, scene_index, shot_index, variation_index),
+                )
+                _set_node_int(workflow, "3", "steps", SAMPLER_STEPS)
+                _set_node_float(workflow, "3", "cfg", SAMPLER_CFG)
+                _set_node_str(workflow, "3", "sampler_name", SAMPLER_NAME)
+                _set_node_str(workflow, "3", "scheduler", SAMPLER_SCHEDULER)
+                _set_node_str(workflow, "4", "ckpt_name", COMFYUI_CHECKPOINT)
+
+            # Common: inject prompts
             _set_node_text(workflow, "6", pos_prompt)
             _set_node_text(workflow, "7", neg_prompt)
-            _set_node_size(workflow, "5", RESOLUTION_CHARACTER[0], RESOLUTION_CHARACTER[1])
-            _set_node_int(
-                workflow, "3", "seed",
-                _character_seed(character_name, emotion, scene_index, shot_index, variation_index),
-            )
-            _set_node_int(workflow, "3", "steps", SAMPLER_STEPS)
-            _set_node_float(workflow, "3", "cfg", SAMPLER_CFG)
-            _set_node_str(workflow, "3", "sampler_name", SAMPLER_NAME)
-            _set_node_str(workflow, "3", "scheduler", SAMPLER_SCHEDULER)
-            _set_node_str(workflow, "4", "ckpt_name", COMFYUI_CHECKPOINT)
-
-            # FaceDetailer (node 10) needs its own params sync'd
-            _set_node_int(workflow, "10", "seed", _character_seed(character_name, emotion, scene_index, shot_index, variation_index))
-            _set_node_int(workflow, "10", "steps", SAMPLER_STEPS)
-            _set_node_float(workflow, "10", "cfg", SAMPLER_CFG)
-            _set_node_str(workflow, "10", "sampler_name", SAMPLER_NAME)
-            _set_node_str(workflow, "10", "scheduler", SAMPLER_SCHEDULER)
-            _set_node_str(workflow, "10", "wildcard", f"face of {character_name}, {character_desc[:100]}")
 
             prompt_id = _queue_prompt(workflow)
             result = _poll_image(prompt_id, timeout=PROMPT_TIMEOUT)
@@ -845,6 +863,14 @@ def generate_character_sprite(
                 img_data, filename, character_name, emotion,
                 target_height=target_height,
             )
+
+            # ── Cache base image (full gen only) ──
+            cached_base_id: str | None = None
+            if base_asset_id is None and idempotency_key:
+                base_img_data = _fetch_image_from_history(prompt_id, node_ids={"14"})
+                if base_img_data is not None:
+                    _cache_base_image(base_img_data[0], idempotency_key)
+                    cached_base_id = idempotency_key
 
             # Webhook callback
             _trigger_webhook("sprite_generated", {
@@ -860,6 +886,7 @@ def generate_character_sprite(
                 "asset_url": processed.get("png_url", ""),
                 "webp_url": processed.get("webp_url", ""),
                 "prompt_id": prompt_id,
+                "base_asset_id": cached_base_id or base_asset_id,
             }
         except Exception as e:
             return {"status": "error", "error": str(e)}
@@ -941,26 +968,56 @@ async def generate_character_sprite_async(
     target_height: int | None = None,
     on_progress: Callable[[float], None] | None = None,
     job_id: str = "",
+    # --- Incremental mode parameters ---
+    base_asset_id: str | None = None,
+    base_image_path: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Async character sprite generation with WebSocket progress monitoring."""
     try:
-        pos_prompt, neg_prompt = _build_sprite_prompts(character_name, character_desc, emotion)
-        workflow = _select_character_workflow()
-        if lora_name:
-            workflow = _inject_lora(workflow, lora_name, lora_weight)
+        pos_prompt, neg_prompt = _build_sprite_prompts(
+            character_name, character_desc, emotion
+        )
 
+        if base_asset_id and base_image_path:
+            # ── Incremental mode: load cached base + FaceDetailer only ──
+            workflow = _select_inpaint_workflow()
+            if lora_name:
+                workflow = _inject_lora(workflow, lora_name, lora_weight)
+
+            # Upload cached base image to ComfyUI
+            try:
+                base_img_filename = _upload_image_to_comfyui(base_image_path)
+            except (httpx.HTTPError, FileNotFoundError) as e:
+                print(f"[comfyui] Base image upload failed, falling back to full gen: {e}")
+                base_asset_id = None  # trigger fallback below
+
+            if base_asset_id is not None:
+                _set_node_str(workflow, "13", "image", base_img_filename)
+                # Emotion-adaptive denoise
+                denoise = _INPAINT_DENOISE_MAP.get(emotion, _INPAINT_DENOISE_DEFAULT)
+                _set_node_float(workflow, "10", "denoise", denoise)
+
+        if base_asset_id is None:
+            # ── Full generation mode (existing behavior) ──
+            workflow = _select_character_workflow()
+            if lora_name:
+                workflow = _inject_lora(workflow, lora_name, lora_weight)
+
+            _set_node_size(workflow, "5", RESOLUTION_CHARACTER[0], RESOLUTION_CHARACTER[1])
+            _set_node_int(
+                workflow, "3", "seed",
+                _character_seed(character_name, emotion, scene_index, shot_index, variation_index),
+            )
+            _set_node_int(workflow, "3", "steps", SAMPLER_STEPS)
+            _set_node_float(workflow, "3", "cfg", SAMPLER_CFG)
+            _set_node_str(workflow, "3", "sampler_name", SAMPLER_NAME)
+            _set_node_str(workflow, "3", "scheduler", SAMPLER_SCHEDULER)
+            _set_node_str(workflow, "4", "ckpt_name", COMFYUI_CHECKPOINT)
+
+        # Common: inject prompts
         _set_node_text(workflow, "6", pos_prompt)
         _set_node_text(workflow, "7", neg_prompt)
-        _set_node_size(workflow, "5", RESOLUTION_CHARACTER[0], RESOLUTION_CHARACTER[1])
-        _set_node_int(
-            workflow, "3", "seed",
-            _character_seed(character_name, emotion, scene_index, shot_index, variation_index),
-        )
-        _set_node_int(workflow, "3", "steps", SAMPLER_STEPS)
-        _set_node_float(workflow, "3", "cfg", SAMPLER_CFG)
-        _set_node_str(workflow, "3", "sampler_name", SAMPLER_NAME)
-        _set_node_str(workflow, "3", "scheduler", SAMPLER_SCHEDULER)
-        _set_node_str(workflow, "4", "ckpt_name", COMFYUI_CHECKPOINT)
 
         prompt_id = _queue_prompt(workflow)
         client_id = uuid.uuid4().hex[:12]
@@ -979,11 +1036,20 @@ async def generate_character_sprite_async(
             target_height=target_height,
         )
 
+        # ── Cache base image (full gen only) ──
+        cached_base_id: str | None = None
+        if base_asset_id is None and idempotency_key:
+            base_img_data = _fetch_image_from_history(prompt_id, node_ids={"14"})
+            if base_img_data is not None:
+                _cache_base_image(base_img_data[0], idempotency_key)
+                cached_base_id = idempotency_key
+
         _trigger_webhook("sprite_generated", {
             "job_id": job_id,
             "character_name": character_name,
             "emotion": emotion,
             "asset_url": processed.get("png_url", ""),
+            "webp_url": processed.get("webp_url", ""),
         })
 
         return {
@@ -991,6 +1057,7 @@ async def generate_character_sprite_async(
             "asset_url": processed.get("png_url", ""),
             "webp_url": processed.get("webp_url", ""),
             "prompt_id": prompt_id,
+            "base_asset_id": cached_base_id or base_asset_id,
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
