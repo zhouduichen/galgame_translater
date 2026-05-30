@@ -49,6 +49,8 @@ class JobStatus(str, Enum):
     running = "running"
     completed = "completed"
     failed = "failed"
+    permanently_failed = "permanently_failed"
+    cancelled = "cancelled"
 
 
 class Side(str, Enum):
@@ -82,6 +84,10 @@ class AssetResource(BaseModel):
     seed: int | None = None
     width: int = 1920
     height: int = 1080
+    idempotency_key: str | None = None
+    """Deterministic hash(project_id:type:params) for dedup — see check_asset_exists()."""
+    base_asset_id: str | None = None
+    """If this asset was generated incrementally from a base, points to the base AssetResource.id."""
 
 
 # ─── Character Layer ─────────────────────────────────────────────────────────
@@ -265,12 +271,13 @@ class GenerationJob(BaseModel):
     """Background job for LLM parsing or asset generation."""
     job_id: str
     project_id: str
-    job_type: Literal["parse_draft", "generate_asset", "export_renpy"]
+    job_type: Literal["parse_draft", "generate_asset", "export_renpy", "export_web"]
     status: JobStatus = JobStatus.pending
     progress: float = 0.0
     payload: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
+    retry_count: int = 0
     created_at: str = ""
     updated_at: str = ""
 
