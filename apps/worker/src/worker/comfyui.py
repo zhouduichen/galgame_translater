@@ -233,11 +233,21 @@ def _fetch_image_from_history(
     return None
 
 
-def _poll_image(prompt_id: str, timeout: int = PROMPT_TIMEOUT) -> tuple[bytes, str] | None:
-    """Poll ComfyUI history until the image is ready."""
+def _poll_image(
+    prompt_id: str,
+    timeout: int = PROMPT_TIMEOUT,
+    node_ids: set[str] | None = None,
+) -> tuple[bytes, str] | None:
+    """Poll ComfyUI history until the image is ready.
+
+    Args:
+        prompt_id: The ComfyUI prompt ID.
+        timeout: Max time to wait in seconds.
+        node_ids: If set, only return images from these output node IDs.
+    """
     start = time.time()
     while time.time() - start < timeout:
-        result = _fetch_image_from_history(prompt_id)
+        result = _fetch_image_from_history(prompt_id, node_ids=node_ids)
         if result is not None:
             return result
         time.sleep(2)
@@ -831,6 +841,7 @@ def generate_character_sprite(
                     # Emotion-adaptive denoise
                     denoise = _INPAINT_DENOISE_MAP.get(emotion, _INPAINT_DENOISE_DEFAULT)
                     _set_node_float(workflow, "10", "denoise", denoise)
+                    _set_node_str(workflow, "4", "ckpt_name", COMFYUI_CHECKPOINT)
 
             if base_asset_id is None:
                 # ── Full generation mode (existing behavior) ──
@@ -854,7 +865,9 @@ def generate_character_sprite(
             _set_node_text(workflow, "7", neg_prompt)
 
             prompt_id = _queue_prompt(workflow)
-            result = _poll_image(prompt_id, timeout=PROMPT_TIMEOUT)
+            # Only fetch from node 12 (Rembg output) — node 14 is also a SaveImage
+            # but outputs the pre-Rembg FaceDetailer result (with background).
+            result = _poll_image(prompt_id, timeout=PROMPT_TIMEOUT, node_ids={"12"})
             if result is None:
                 return {"status": "error", "error": "Image generation timed out"}
 
@@ -997,6 +1010,7 @@ async def generate_character_sprite_async(
                 # Emotion-adaptive denoise
                 denoise = _INPAINT_DENOISE_MAP.get(emotion, _INPAINT_DENOISE_DEFAULT)
                 _set_node_float(workflow, "10", "denoise", denoise)
+                _set_node_str(workflow, "4", "ckpt_name", COMFYUI_CHECKPOINT)
 
         if base_asset_id is None:
             # ── Full generation mode (existing behavior) ──
@@ -1026,7 +1040,9 @@ async def generate_character_sprite_async(
         if not done:
             return {"status": "error", "error": "Image generation timed out"}
 
-        result = _fetch_image_from_history(prompt_id)
+        # Only fetch from node 12 (Rembg output) — node 14 is also a SaveImage
+        # but outputs the pre-Rembg FaceDetailer result (with background).
+        result = _fetch_image_from_history(prompt_id, node_ids={"12"})
         if result is None:
             return {"status": "error", "error": "Failed to fetch image after execution"}
 
