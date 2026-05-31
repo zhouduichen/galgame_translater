@@ -15,6 +15,11 @@ load_dotenv()
 
 from .tasks import TASK_HANDLERS
 
+# Schema version check on import
+from scripts.migrate_v1_to_v2 import check_schema_version  # type: ignore[import-untyped]
+
+check_schema_version()
+
 POLL_INTERVAL = 5  # seconds — only used when idle
 MAX_WORKERS = int(os.environ.get("WORKER_MAX_THREADS", "3"))
 DATA_DIR = Path(os.environ.get("GALGAME_DB_DIR", str(Path(__file__).resolve().parent.parent.parent.parent / "api" / "data")))
