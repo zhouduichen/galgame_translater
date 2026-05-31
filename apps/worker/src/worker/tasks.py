@@ -230,12 +230,14 @@ def atomic_merge_asset(
 
     conn = sqlite3.connect(str(db_path), timeout=10)
     try:
-        conn.execute("BEGIN IMMEDIATE")
-
-        # Test hook: wait at barrier to maximise race exposure
+        # Test hook: align contenders immediately before lock acquisition.
+        # Waiting after BEGIN IMMEDIATE would deadlock because only one
+        # connection can hold SQLite's write lock at a time.
         barrier = _CONCURRENCY_BARRIER
         if barrier is not None:
             barrier.wait()
+
+        conn.execute("BEGIN IMMEDIATE")
 
         row = conn.execute(
             "SELECT data FROM projects WHERE id = ?", (project_id,)

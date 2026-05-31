@@ -10,22 +10,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
+from project_model.schema_version import check_schema_version
 
 load_dotenv()
 
 from .tasks import TASK_HANDLERS
 
 # Schema version check on import (optional — scripts/ may not be installed in test env)
-try:
-    from scripts.migrate_v1_to_v2 import check_schema_version  # type: ignore[import-untyped]
-    check_schema_version()
-except ImportError:
-    pass
-
 POLL_INTERVAL = 5  # seconds — only used when idle
 MAX_WORKERS = int(os.environ.get("WORKER_MAX_THREADS", "3"))
 DATA_DIR = Path(os.environ.get("GALGAME_DB_DIR", str(Path(__file__).resolve().parent.parent.parent.parent / "api" / "data")))
 BATCH_SIZE = 10
+
+check_schema_version(DATA_DIR / "galgame.db")
 
 
 def _claim_pending_jobs(limit: int = BATCH_SIZE) -> list[dict]:

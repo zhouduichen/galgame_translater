@@ -4,16 +4,14 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from project_model.schema_version import check_schema_version
 
-from .database import DEFAULT_GENERATED_DIR, init_db
+from .database import DATABASE_URL, DEFAULT_GENERATED_DIR, init_db
 from .routers import projects
 
 # Schema version check on import (optional — scripts/ may not be installed in test env)
-try:
-    from scripts.migrate_v1_to_v2 import check_schema_version  # type: ignore[import-untyped]
-    check_schema_version()
-except ImportError:
-    pass
+if DATABASE_URL.startswith("sqlite:///"):
+    check_schema_version(DATABASE_URL.removeprefix("sqlite:///"))
 
 app = FastAPI(title="Galgame 转译器 API", version="0.1.0")
 

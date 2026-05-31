@@ -33,11 +33,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+_PROJECT_MODEL_SRC = Path(__file__).resolve().parent.parent / "packages" / "project-model" / "src"
+if _PROJECT_MODEL_SRC.is_dir():
+    sys.path.insert(0, str(_PROJECT_MODEL_SRC))
+
+from project_model.schema_version import MIGRATION_LOG_TABLE, check_schema_version
+
 
 # ── Constants ──────────────────────────────────────────────────────────────
 
 REQUIRED_VERSION = 2
-MIGRATION_LOG_TABLE = "_migration_log"
 VALID_STATUSES = {"pending", "running", "completed", "failed", "permanently_failed", "cancelled"}
 
 MIGRATIONS: list[dict[str, Any]] = [
@@ -402,41 +407,6 @@ def run_migration(db_path: Path, apply: bool = False, force: bool = False) -> in
 
 
 # ── Schema Version Check (for service startup) ──────────────────────────────
-
-
-def check_schema_version(db_path: str | Path | None = None) -> str:
-    """Check database schema version. Exits with code 1 if V1 or incomplete."""
-    if db_path is None:
-        db_path = _resolve_db_path()
-    db_path = Path(db_path)
-
-    if not db_path.exists():
-        return "NO_DB"
-
-    conn = sqlite3.connect(str(db_path), timeout=10)
-    cursor = conn.cursor()
-
-    if not _table_exists(cursor, MIGRATION_LOG_TABLE):
-        conn.close()
-        print(
-            "FATAL: Database schema is V1. "
-            "Run `python scripts/migrate_v1_to_v2.py --apply` before starting services."
-        )
-        sys.exit(1)
-
-    # Check required migrations
-    required = ["add_idempotency_key_col", "add_retry_count_col", "add_locked_until_col"]
-    missing = [n for n in required if not _migration_applied(cursor, n)]
-    conn.close()
-
-    if missing:
-        print(
-            f"FATAL: Missing required migration(s): {', '.join(missing)}. "
-            f"Run `python scripts/migrate_v1_to_v2.py --apply`."
-        )
-        sys.exit(1)
-
-    return "V2"
 
 
 # ── Rollback ────────────────────────────────────────────────────────────────

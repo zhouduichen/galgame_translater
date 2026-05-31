@@ -97,7 +97,7 @@ def _cleanup():
 
 # Import after setting env var and sys.path
 import worker.tasks as _wt  # noqa: E402
-from worker.tasks import _CONCURRENCY_BARRIER, atomic_merge_asset  # noqa: E402
+from worker.tasks import atomic_merge_asset  # noqa: E402
 
 
 class TestAtomicMergeConcurrency:
@@ -119,8 +119,8 @@ class TestAtomicMergeConcurrency:
         monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         N = 10
         pid = _setup_project()
-        barrier = threading.Barrier(N)
-        _CONCURRENCY_BARRIER = barrier  # type: ignore[assignment]
+        barrier = threading.Barrier(N, timeout=1)
+        monkeypatch.setattr(_wt, "_CONCURRENCY_BARRIER", barrier)
 
         results: list[bool] = []
         results_lock = threading.Lock()
@@ -143,10 +143,9 @@ class TestAtomicMergeConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=3)
 
-        _CONCURRENCY_BARRIER = None  # reset
-
+        assert not any(t.is_alive() for t in threads), "Concurrent merge threads did not finish"
         assert all(results), f"Some merges failed: {results}"
         assert _load_asset_count(pid) == N, (
             f"Expected {N} assets, got {_load_asset_count(pid)}"
@@ -157,8 +156,8 @@ class TestAtomicMergeConcurrency:
         """Two threads writing the same asset_id: only one copy survives."""
         monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         pid = _setup_project()
-        barrier = threading.Barrier(2)
-        _CONCURRENCY_BARRIER = barrier  # type: ignore[assignment]
+        barrier = threading.Barrier(2, timeout=1)
+        monkeypatch.setattr(_wt, "_CONCURRENCY_BARRIER", barrier)
 
         results: list[bool] = []
         results_lock = threading.Lock()
@@ -177,9 +176,9 @@ class TestAtomicMergeConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=3)
 
-        _CONCURRENCY_BARRIER = None
+        assert not any(t.is_alive() for t in threads), "Concurrent merge threads did not finish"
         assert all(results)
         # Only one asset with this ID should exist
         assert _load_asset_count(pid) == 1
