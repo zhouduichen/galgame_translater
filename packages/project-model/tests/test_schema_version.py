@@ -3,7 +3,6 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-
 from project_model.schema_version import (
     MIGRATION_LOG_TABLE,
     REQUIRED_MIGRATIONS,

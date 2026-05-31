@@ -16,12 +16,12 @@ load_dotenv()
 
 from .tasks import TASK_HANDLERS
 
-# Schema version check on import (optional — scripts/ may not be installed in test env)
 POLL_INTERVAL = 5  # seconds — only used when idle
 MAX_WORKERS = int(os.environ.get("WORKER_MAX_THREADS", "3"))
 DATA_DIR = Path(os.environ.get("GALGAME_DB_DIR", str(Path(__file__).resolve().parent.parent.parent.parent / "api" / "data")))
 BATCH_SIZE = 10
 
+# Existing databases must be migrated explicitly before the worker starts.
 check_schema_version(DATA_DIR / "galgame.db")
 
 

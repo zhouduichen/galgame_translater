@@ -24,12 +24,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +36,7 @@ _PROJECT_MODEL_SRC = Path(__file__).resolve().parent.parent / "packages" / "proj
 if _PROJECT_MODEL_SRC.is_dir():
     sys.path.insert(0, str(_PROJECT_MODEL_SRC))
 
-from project_model.schema_version import MIGRATION_LOG_TABLE, check_schema_version
+from project_model.schema_version import MIGRATION_LOG_TABLE  # noqa: E402, I001
 
 
 # ── Constants ──────────────────────────────────────────────────────────────
@@ -78,14 +77,20 @@ MIGRATIONS: list[dict[str, Any]] = [
     {
         "version": 2,
         "name": "clean_duplicate_active_jobs",
-        "description": "Cancel duplicate pending/running jobs sharing the same (project_id, job_type, idempotency_key)",
+        "description": (
+            "Cancel duplicate pending/running jobs sharing the same "
+            "(project_id, job_type, idempotency_key)"
+        ),
         "destructive": False,
         "requires_data_cleanup": True,
     },
     {
         "version": 2,
         "name": "create_unique_active_job_index",
-        "description": "Add partial unique index on generation_jobs WHERE status IN ('pending', 'running')",
+        "description": (
+            "Add partial unique index on generation_jobs "
+            "WHERE status IN ('pending', 'running')"
+        ),
         "destructive": False,
         "requires_data_cleanup": True,
     },
@@ -199,7 +204,7 @@ def _mig_add_idempotency_key_index(cursor: sqlite3.Cursor, dry_run: bool) -> str
     )
     if not dry_run:
         cursor.execute(sql)
-    return f"OK (`CREATE INDEX ...`)"
+    return "OK (`CREATE INDEX ...`)"
 
 
 def _mig_add_retry_count_col(cursor: sqlite3.Cursor, dry_run: bool) -> str:
@@ -266,8 +271,9 @@ def _mig_clean_duplicate_active_jobs(cursor: sqlite3.Cursor, dry_run: bool) -> s
     if not dry_run:
         placeholders = ",".join("?" for _ in to_cancel)
         cursor.execute(
-            f"UPDATE generation_jobs SET status='cancelled', updated_at=? WHERE id IN ({placeholders})",
-            (datetime.now(timezone.utc).isoformat(), *to_cancel),
+            "UPDATE generation_jobs SET status='cancelled', updated_at=? "
+            f"WHERE id IN ({placeholders})",
+            (datetime.now(UTC).isoformat(), *to_cancel),
         )
 
     return f"DATA CHANGE: cancelled {len(to_cancel)} duplicate job(s) out of {total_active} active"
@@ -283,7 +289,7 @@ def _mig_create_unique_active_job_index(cursor: sqlite3.Cursor, dry_run: bool) -
     )
     if not dry_run:
         cursor.execute(sql)
-    return f"OK (`CREATE UNIQUE INDEX ...` on pending/running jobs)"
+    return "OK (`CREATE UNIQUE INDEX ...` on pending/running jobs)"
 
 
 def _mig_add_locked_until_col(cursor: sqlite3.Cursor, dry_run: bool) -> str:
@@ -307,9 +313,10 @@ def _mig_validate_status_values(cursor: sqlite3.Cursor, dry_run: bool) -> str:
         return "OK (no invalid status values)"
 
     if not dry_run:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         cursor.execute(
-            "UPDATE generation_jobs SET status='failed', updated_at=? WHERE status NOT IN ({})".format(
+            "UPDATE generation_jobs SET status='failed', updated_at=? "
+            "WHERE status NOT IN ({})".format(
                 ",".join("?" for _ in VALID_STATUSES)
             ),
             [now, *VALID_STATUSES],
@@ -441,7 +448,7 @@ def print_rollback_plan(db_path: Path) -> int:
     for name, desc, applied_at in rows:
         reverse_sql = ""
         if name.endswith("_col"):
-            reverse_sql = f"    ALTER TABLE ... DROP COLUMN (requires SQLite 3.35+)"
+            reverse_sql = "    ALTER TABLE ... DROP COLUMN (requires SQLite 3.35+)"
         elif name.endswith("_index"):
             idx_name = name.replace("create_", "idx_")
             reverse_sql = f"    DROP INDEX IF EXISTS {idx_name}"

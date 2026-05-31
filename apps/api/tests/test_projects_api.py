@@ -1,17 +1,25 @@
 import os
+from pathlib import Path
 
 os.environ["GALGAME_DATABASE_URL"] = "sqlite:///./test_galgame_api.db"
+TEST_DB_PATH = Path("test_galgame_api.db")
+TEST_DB_PATH.unlink(missing_ok=True)
 
-from fastapi.testclient import TestClient
-
-from api.database import Base, SessionLocal, engine, init_db, save_project
-from api.main import app
-from project_model.mock_data import MOCK_PROJECT
+from api.database import Base, SessionLocal, engine, init_db, save_project  # noqa: E402
+from api.main import app  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from project_model.mock_data import MOCK_PROJECT  # noqa: E402
+from project_model.schema_version import check_schema_version  # noqa: E402
 
 
 def reset_database() -> None:
     Base.metadata.drop_all(engine)
     init_db()
+
+
+def teardown_module() -> None:
+    engine.dispose()
+    TEST_DB_PATH.unlink(missing_ok=True)
 
 
 def test_health() -> None:
@@ -22,6 +30,12 @@ def test_health() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_init_db_bootstraps_schema_version() -> None:
+    reset_database()
+
+    assert check_schema_version(TEST_DB_PATH) == "V2"
 
 
 def test_create_and_load_project() -> None:
@@ -116,5 +130,8 @@ def test_builtin_demo_uses_current_mock_data_even_if_database_has_stale_copy() -
     assert load_response.status_code == 200
     assert load_response.json()["title"] == MOCK_PROJECT.title
     assert list_response.status_code == 200
-    listed_demo = next(p for p in list_response.json()["projects"] if p["id"] == MOCK_PROJECT.project_id)
+    listed_demo = next(
+        p for p in list_response.json()["projects"]
+        if p["id"] == MOCK_PROJECT.project_id
+    )
     assert listed_demo["title"] == MOCK_PROJECT.title

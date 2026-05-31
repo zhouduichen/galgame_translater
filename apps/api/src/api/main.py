@@ -9,7 +9,7 @@ from project_model.schema_version import check_schema_version
 from .database import DATABASE_URL, DEFAULT_GENERATED_DIR, init_db
 from .routers import projects
 
-# Schema version check on import (optional — scripts/ may not be installed in test env)
+# Existing SQLite databases must be migrated explicitly before API startup.
 if DATABASE_URL.startswith("sqlite:///"):
     check_schema_version(DATABASE_URL.removeprefix("sqlite:///"))
 

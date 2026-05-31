@@ -14,11 +14,9 @@ import os
 import sqlite3
 import sys
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
-
-import pytest
 
 # Allow import from apps/worker/src
 _HERE = Path(__file__).resolve().parent
@@ -26,7 +24,7 @@ _WORKER_SRC = _HERE.parent / "src"
 if str(_WORKER_SRC) not in sys.path:
     sys.path.insert(0, str(_WORKER_SRC))
 
-from project_model.schema import AdaptationProject, AssetResource, AssetType, Emotion, Character  # noqa: E402
+from project_model.schema import AdaptationProject, AssetResource, Character, Emotion  # noqa: E402
 
 # Use a test database in the same location that atomic_merge_asset expects
 TEST_DB_DIR = _HERE.parent / ".test_data"
@@ -53,7 +51,7 @@ def _setup_project() -> str:
         )"""
     )
     pid = f"test_{uuid4().hex[:8]}"
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     project = AdaptationProject(
         project_id=pid,
         title="Concurrency Test",
@@ -117,9 +115,9 @@ class TestAtomicMergeConcurrency:
     def test_concurrent_merge_retains_all_assets(self, monkeypatch):
         """N threads merging different assets all succeed — count == N."""
         monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
-        N = 10
+        thread_count = 10
         pid = _setup_project()
-        barrier = threading.Barrier(N, timeout=1)
+        barrier = threading.Barrier(thread_count, timeout=1)
         monkeypatch.setattr(_wt, "_CONCURRENCY_BARRIER", barrier)
 
         results: list[bool] = []
@@ -136,7 +134,7 @@ class TestAtomicMergeConcurrency:
                 url=f"/generated/concurrent/{i}.png",
                 asset_type="background",
             )
-            for i in range(N)
+            for i in range(thread_count)
         ]
         threads = [threading.Thread(target=_worker, args=(a,)) for a in assets]
 
@@ -147,8 +145,8 @@ class TestAtomicMergeConcurrency:
 
         assert not any(t.is_alive() for t in threads), "Concurrent merge threads did not finish"
         assert all(results), f"Some merges failed: {results}"
-        assert _load_asset_count(pid) == N, (
-            f"Expected {N} assets, got {_load_asset_count(pid)}"
+        assert _load_asset_count(pid) == thread_count, (
+            f"Expected {thread_count} assets, got {_load_asset_count(pid)}"
         )
         _cleanup()
 
