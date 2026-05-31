@@ -5,7 +5,7 @@
       "seed": 42,
       "steps": 25,
       "cfg": 7,
-      "sampler_name": "euler",
+      "sampler_name": "euler_ancestral",
       "scheduler": "normal",
       "denoise": 1,
       "model": ["4", 0],
@@ -17,7 +17,7 @@
   "4": {
     "class_type": "CheckpointLoaderSimple",
     "inputs": {
-      "ckpt_name": "v1-5-pruned-emaonly.safetensors"
+      "ckpt_name": "animagine-xl-3.1.safetensors"
     }
   },
   "5": {

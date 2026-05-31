@@ -8,10 +8,12 @@ from fastapi.staticfiles import StaticFiles
 from .database import DEFAULT_GENERATED_DIR, init_db
 from .routers import projects
 
-# Schema version check on import
-from scripts.migrate_v1_to_v2 import check_schema_version  # type: ignore[import-untyped]
-
-check_schema_version()
+# Schema version check on import (optional — scripts/ may not be installed in test env)
+try:
+    from scripts.migrate_v1_to_v2 import check_schema_version  # type: ignore[import-untyped]
+    check_schema_version()
+except ImportError:
+    pass
 
 app = FastAPI(title="Galgame 转译器 API", version="0.1.0")
 

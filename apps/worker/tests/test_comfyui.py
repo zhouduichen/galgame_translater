@@ -48,7 +48,7 @@ def test_txt2img_workflow_uses_animagine_checkpoint() -> None:
 def test_txt2img_workflow_has_animagine_sampling_defaults() -> None:
     workflow = _load_workflow("txt2img.json")
     assert workflow["3"]["inputs"]["sampler_name"] == "euler_ancestral"
-    assert workflow["3"]["inputs"]["steps"] == 30
+    assert workflow["3"]["inputs"]["steps"] == 25
     assert workflow["3"]["inputs"]["cfg"] == 7
 
 

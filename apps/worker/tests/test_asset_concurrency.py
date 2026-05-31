@@ -96,14 +96,16 @@ def _cleanup():
 
 
 # Import after setting env var and sys.path
+import worker.tasks as _wt  # noqa: E402
 from worker.tasks import _CONCURRENCY_BARRIER, atomic_merge_asset  # noqa: E402
 
 
 class TestAtomicMergeConcurrency:
     """Verify that atomic_merge_asset does not lose data under concurrency."""
 
-    def test_single_thread_merge(self):
+    def test_single_thread_merge(self, monkeypatch):
         """Baseline: single-threaded merge retains all assets."""
+        monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         pid = _setup_project()
         asset = AssetResource(id="ast_0001", url="/gen/1.png", asset_type="background")
 
@@ -112,8 +114,9 @@ class TestAtomicMergeConcurrency:
         assert _load_asset_count(pid) == 1
         _cleanup()
 
-    def test_concurrent_merge_retains_all_assets(self):
+    def test_concurrent_merge_retains_all_assets(self, monkeypatch):
         """N threads merging different assets all succeed — count == N."""
+        monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         N = 10
         pid = _setup_project()
         barrier = threading.Barrier(N)
@@ -150,8 +153,9 @@ class TestAtomicMergeConcurrency:
         )
         _cleanup()
 
-    def test_concurrent_merge_same_asset_id_does_not_duplicate(self):
+    def test_concurrent_merge_same_asset_id_does_not_duplicate(self, monkeypatch):
         """Two threads writing the same asset_id: only one copy survives."""
+        monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         pid = _setup_project()
         barrier = threading.Barrier(2)
         _CONCURRENCY_BARRIER = barrier  # type: ignore[assignment]
@@ -185,18 +189,20 @@ class TestAtomicMergeConcurrency:
 class TestAtomicMergeEdgeCases:
     """Edge cases: nonexistent project, type bindings, re-merge."""
 
-    def test_nonexistent_project_returns_false(self):
+    def test_nonexistent_project_returns_false(self, monkeypatch):
+        monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         asset = AssetResource(id="ast_x", url="/gen/x.png", asset_type="background")
         ok = atomic_merge_asset("proj_nonexistent", asset)
         assert ok is False
 
-    def test_background_binding_sets_scene_id(self):
+    def test_background_binding_sets_scene_id(self, monkeypatch):
+        monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         pid = _setup_project()
         # First add a scene manually
         conn = sqlite3.connect(str(TEST_DB_PATH))
         row = conn.execute("SELECT data FROM projects WHERE id = ?", (pid,)).fetchone()
         project = AdaptationProject.model_validate_json(row[0])
-        from project_model.schema import NarrationNode, Scene
+        from project_model.schema import Scene
 
         scene = Scene(scene_id="scene_001", title="Test Scene", nodes={})
         project.scenes["scene_001"] = scene
@@ -223,9 +229,9 @@ class TestAtomicMergeEdgeCases:
 class TestBaseCacheFallback:
     """Verify _base_cache_fallback() works with base cache paths."""
 
-    def test_base_cache_fallback_returns_none_when_no_neutral(self):
+    def test_base_cache_fallback_returns_none_when_no_neutral(self, monkeypatch):
         """No neutral asset in char.asset_ids → fallback returns None."""
-        from project_model.schema import Character
+        monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         pid = _setup_project()
         # Add a character with no neutral
         conn = sqlite3.connect(str(TEST_DB_PATH))
@@ -244,14 +250,14 @@ class TestBaseCacheFallback:
         conn.commit()
         conn.close()
 
-        # The fallback should return None when no neutral asset exists
         from worker.tasks import _base_cache_fallback
         result = _base_cache_fallback(project, "char_a")
         assert result is None
         _cleanup()
 
-    def test_base_cache_fallback_returns_none_when_no_idempotency_key(self):
+    def test_base_cache_fallback_returns_none_when_no_idempotency_key(self, monkeypatch):
         """Asset exists but has no idempotency_key → cannot resolve cache path."""
+        monkeypatch.setattr(_wt, "DATA_DIR", TEST_DB_DIR)
         pid = _setup_project()
         conn = sqlite3.connect(str(TEST_DB_PATH))
         row = conn.execute("SELECT data FROM projects WHERE id = ?", (pid,)).fetchone()
@@ -267,7 +273,6 @@ class TestBaseCacheFallback:
             id="ast_neutral",
             url="/api/assets/neutral.png",
             asset_type="character_sprite",
-            # No idempotency_key
         )
         conn.execute(
             "UPDATE projects SET data = ? WHERE id = ?",

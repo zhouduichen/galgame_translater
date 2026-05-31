@@ -31,7 +31,7 @@ def test_handle_parse_draft_saves_draft_and_project(monkeypatch, tmp_path) -> No
         "warnings": [],
     }
 
-    def fake_parse_novel(novel_text: str, target_length: str):
+    def fake_parse_novel(novel_text: str, target_length: str, **kwargs):
         return dict(draft)
 
     def fake_promote(parsed_draft, project_id):

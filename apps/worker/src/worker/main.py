@@ -15,10 +15,12 @@ load_dotenv()
 
 from .tasks import TASK_HANDLERS
 
-# Schema version check on import
-from scripts.migrate_v1_to_v2 import check_schema_version  # type: ignore[import-untyped]
-
-check_schema_version()
+# Schema version check on import (optional — scripts/ may not be installed in test env)
+try:
+    from scripts.migrate_v1_to_v2 import check_schema_version  # type: ignore[import-untyped]
+    check_schema_version()
+except ImportError:
+    pass
 
 POLL_INTERVAL = 5  # seconds — only used when idle
 MAX_WORKERS = int(os.environ.get("WORKER_MAX_THREADS", "3"))
