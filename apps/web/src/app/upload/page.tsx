@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 
 type UploadStatus = "idle" | "uploading" | "parsing" | "generating" | "done" | "error";
 
-type JobStatus = "pending" | "running" | "completed" | "failed";
+type JobStatus = "pending" | "running" | "completed" | "failed" | "permanently_failed" | "cancelled";
 type GenerationJob = {
   job_id: string;
   status: JobStatus;
@@ -81,7 +81,7 @@ export default function UploadPage() {
         body: JSON.stringify({ novel_text: text, target_length: "10min_demo" }),
       });
       if (!parseRes.ok) throw new Error("提交解析任务失败");
-      const { job_id } = await parseRes.json();
+      const { job_id: parse_job_id } = await parseRes.json();
 
       let completed = false;
       let failedError: string | null = null;
@@ -91,7 +91,7 @@ export default function UploadPage() {
         const jobsRes = await fetch(`/api/projects/${id}/jobs`);
         if (!jobsRes.ok) throw new Error("查询解析任务失败");
         const jobs: GenerationJob[] = await jobsRes.json();
-        const job = findJob(jobs, job_id);
+        const job = findJob(jobs, parse_job_id);
 
         if (job?.progress != null) {
           setParseProgress(job.progress * 100);
@@ -102,8 +102,12 @@ export default function UploadPage() {
           completed = true;
           break;
         }
-        if (job?.status === "failed") {
+        if (job?.status === "failed" || job?.status === "permanently_failed") {
           failedError = job.error || "解析任务失败";
+          break;
+        }
+        if (job?.status === "cancelled") {
+          failedError = "解析任务已取消";
           break;
         }
 
@@ -114,17 +118,21 @@ export default function UploadPage() {
       if (failedError) throw new Error(failedError);
       if (!completed) throw new Error("解析任务超时，请确认 Worker 是否正在运行");
 
-      // Parse done — show result immediately. Asset generation fires in background.
+      // Parse done
       await api.getProject(id);
       setProjectId(id);
       setStatus("done");
 
+      // Fire asset generation in background, tracking by its returned job_ids
       (async () => {
         try {
           const genRes = await fetch(`/api/projects/${id}/generate-assets`, { method: "POST" });
           if (!genRes.ok) return;
-          const { count } = await genRes.json();
-          setGenProgress({ total: count, completed: 0, failed: 0, running: 0, errors: [] });
+          const data = await genRes.json();
+          const total: number = data.count;
+          const jobIds: string[] = data.job_ids ?? [];
+          if (total === 0) return;
+          setGenProgress({ total, completed: 0, failed: 0, running: 0, errors: [] });
 
           let staleTicks = 0;
           let lastDone = 0;
@@ -134,20 +142,25 @@ export default function UploadPage() {
               const jobsRes = await fetch(`/api/projects/${id}/jobs`);
               if (!jobsRes.ok) continue;
               const allJobs: GenerationJob[] = await jobsRes.json();
-              const genJobs = allJobs.filter((j: GenerationJob) => j.job_type === "generate_asset");
               let completed = 0, failed = 0, running = 0;
               const errors: string[] = [];
-              for (const j of genJobs) {
+
+              // Only track jobs from this batch
+              for (const j of allJobs) {
+                if (!jobIds.includes(j.job_id)) continue;
                 if (j.status === "completed") completed++;
-                else if (j.status === "failed") { failed++; if (j.error) errors.push(j.error); }
-                else if (j.status === "running") running++;
+                else if (j.status === "permanently_failed" || j.status === "failed") {
+                  failed++;
+                  if (j.error) errors.push(j.error);
+                }
+                else if (j.status === "running" || j.status === "pending") running++;
               }
-              setGenProgress({ total: count, completed, failed, running, errors });
+              setGenProgress({ total, completed, failed, running, errors });
               const done = completed + failed;
               if (done > lastDone) { lastDone = done; staleTicks = 0; }
               else { staleTicks++; }
               if (staleTicks >= 10) setWorkerWarning(true);
-              if (done >= count) break;
+              if (done >= total) break;
             } catch { /* ignore transient poll errors */ }
           }
         } catch { /* background gen failed silently */ }

@@ -82,7 +82,12 @@ def _job_result_failed(result: object) -> bool:
 
 
 def _process_one(job: dict) -> None:
-    """Process a single job. Updates DB on completion/failure."""
+    """Process a single job. Updates DB on completion/failure.
+
+    Checks for cancellation before writing final status to avoid
+    overwriting a manual cancel that arrived between job claim and
+    handler completion.
+    """
     handler = TASK_HANDLERS.get(job["job_type"])
     if handler is None:
         print(f"[worker] Unknown job type: {job['job_type']}")
@@ -91,10 +96,28 @@ def _process_one(job: dict) -> None:
 
     print(f"[worker] Processing {job['id']} ({job['job_type']})")
 
+    def _is_cancelled() -> bool:
+        db_path = DATA_DIR / "galgame.db"
+        if not db_path.exists():
+            return False
+        import sqlite3
+        conn = sqlite3.connect(str(db_path))
+        try:
+            row = conn.execute("SELECT status FROM generation_jobs WHERE id = ?", (job["id"],)).fetchone()
+            return row is not None and row[0] == "cancelled"
+        finally:
+            conn.close()
+
     try:
         payload = json.loads(job["payload"]) if isinstance(job["payload"], str) else job["payload"]
         payload["job_id"] = job["id"]
         result = handler(payload)
+
+        # Final cancellation check before writing result
+        if _is_cancelled():
+            print(f"[worker] {job['id']} was cancelled — skipping final write")
+            return
+
         if _job_result_failed(result):
             _update_job(
                 job["id"],
