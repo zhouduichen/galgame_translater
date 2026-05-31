@@ -9,8 +9,9 @@ import json
 import os
 import sqlite3
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from uuid import uuid4
 
@@ -20,6 +21,16 @@ from .parser import parse_novel
 from .promoter import promote
 
 DATA_DIR = Path(os.environ.get("GALGAME_DB_DIR", str(Path(__file__).resolve().parent.parent.parent.parent / "api" / "data")))
+
+# ── Project-level concurrency lock ─────────────────────────────────────────
+# Guards the read-merge-write cycle per project_id.
+# Only effective within a single process; multi-worker deployments need
+# the locked_until + BEGIN IMMEDIATE approach instead.
+_project_locks: dict[str, Lock] = {}
+_project_locks_lock = Lock()
+_BASE_WAIT_TIMEOUT = 300.0        # seconds before degrading to full gen
+_BASE_WAIT_POLL_INTERVAL = 2.0
+_DEGRADED_MAX_RETRIES = 2         # max neutral failures before skipping base
 
 
 def _update_job_progress(job_id: str, progress: float) -> None:
@@ -148,6 +159,14 @@ def handle_parse_draft(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _get_project_lock(project_id: str) -> Lock:
+    """Return a per-project reentrant lock for single-process safety."""
+    with _project_locks_lock:
+        if project_id not in _project_locks:
+            _project_locks[project_id] = Lock()
+        return _project_locks[project_id]
+
+
 def _load_project_from_db(project_id: str) -> AdaptationProject | None:
     """Read an AdaptationProject from the SQLite DB."""
     db_path = DATA_DIR / "galgame.db"
@@ -162,7 +181,11 @@ def _load_project_from_db(project_id: str) -> AdaptationProject | None:
 
 
 def _save_project_to_db_slim(project: AdaptationProject) -> None:
-    """Save an AdaptationProject back to the SQLite DB (minimal columns)."""
+    """Save an AdaptationProject back to the SQLite DB (minimal columns).
+
+    DEPRECATED: use atomic_merge_asset() instead to avoid TOCTOU races.
+    Retained for call sites that do read-merge-write in a single-thread context.
+    """
     db_path = DATA_DIR / "galgame.db"
     conn = sqlite3.connect(str(db_path))
     conn.execute(
@@ -173,16 +196,261 @@ def _save_project_to_db_slim(project: AdaptationProject) -> None:
     conn.close()
 
 
+# ── Atomic asset merge ─────────────────────────────────────────────────────
+
+
+def atomic_merge_asset(
+    project_id: str,
+    asset_resource: AssetResource,
+    *,
+    scene_id: str | None = None,
+    character_id: str | None = None,
+    emotion: Emotion | None = None,
+    base_asset_id: str | None = None,
+) -> bool:
+    """Merge one AssetResource into the project within a single BEGIN IMMEDIATE transaction.
+
+    Reads the latest project JSON, merges in-memory, then writes back.
+    The write-lock serialises concurrent writes per-project.
+
+    Args:
+        project_id: The project to update.
+        asset_resource: The fully-constructed AssetResource to insert/overwrite.
+        scene_id: If set AND asset type is background, bind to scene.background_id.
+        character_id + emotion: If set AND asset type is character_sprite, bind
+            char.asset_ids[emotion].
+        base_asset_id: Optional id of the base asset used for incremental gen.
+
+    Returns:
+        True if the project was updated. False if the project does not exist.
+    """
+    db_path = DATA_DIR / "galgame.db"
+    if not db_path.exists():
+        return False
+
+    conn = sqlite3.connect(str(db_path), timeout=10)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+
+        # Test hook: wait at barrier to maximise race exposure
+        barrier = _CONCURRENCY_BARRIER
+        if barrier is not None:
+            barrier.wait()
+
+        row = conn.execute(
+            "SELECT data FROM projects WHERE id = ?", (project_id,)
+        ).fetchone()
+        if row is None:
+            conn.rollback()
+            return False
+
+        project = AdaptationProject.model_validate_json(row[0])
+
+        # Merge the asset
+        project.asset_resources[asset_resource.id] = asset_resource
+
+        if base_asset_id and asset_resource.base_asset_id is None:
+            asset_resource.base_asset_id = base_asset_id
+
+        # Bind background
+        if scene_id and asset_resource.asset_type == AssetType.background:
+            if scene_id in project.scenes:
+                project.scenes[scene_id].background_id = asset_resource.id
+
+        # Bind character sprite
+        if (
+            character_id
+            and emotion
+            and asset_resource.asset_type == AssetType.character_sprite
+        ):
+            if character_id in project.characters:
+                project.characters[character_id].asset_ids[emotion] = asset_resource.id
+
+        now = datetime.now(timezone.utc).isoformat()
+        project.updated_at = now
+        conn.execute(
+            "UPDATE projects SET data = ?, updated_at = ? WHERE id = ?",
+            (project.model_dump_json(), now, project_id),
+        )
+
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _re_enqueue_job(
+    job_id: str,
+    project_id: str,
+    original_payload: dict[str, Any],
+    *,
+    degraded_base: bool = False,
+    degraded_reason: str = "",
+) -> None:
+    """Cancel the current job and enqueue a deferred replacement.
+
+    Used when a non-neutral character sprite needs to wait for a base image.
+    The new job carries ``degraded_base`` + ``degraded_reason`` in its payload
+    so the next handler invocation knows to skip further base-image detection.
+    """
+    db_path = DATA_DIR / "galgame.db"
+    if not db_path.exists():
+        return
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+
+        now = datetime.now(timezone.utc).isoformat()
+        # Cancel the current job
+        conn.execute(
+            "UPDATE generation_jobs SET status='cancelled', updated_at=? WHERE id=?",
+            (now, job_id),
+        )
+
+        # Create replacement with degraded flag
+        new_payload = dict(original_payload)
+        if degraded_base:
+            new_payload["degraded_base"] = True
+            new_payload["degraded_reason"] = degraded_reason
+
+        new_id = f"deferred_{uuid4().hex[:12]}"
+        conn.execute(
+            """INSERT INTO generation_jobs
+               (id, project_id, job_type, status, payload, created_at, updated_at)
+               VALUES (?, ?, 'generate_asset', 'pending', ?, ?, ?)""",
+            (new_id, project_id, json.dumps(new_payload), now, now),
+        )
+
+        conn.commit()
+        print(f"[worker] Re-enqueued {job_id} -> {new_id} (degraded={degraded_base})")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _count_pending_jobs(
+    project_id: str,
+    character_id: str | None = None,
+    emotion: str | None = None,
+) -> int:
+    """Count pending/running generate_asset jobs matching optional filters."""
+    db_path = DATA_DIR / "galgame.db"
+    if not db_path.exists():
+        return 0
+    conn = sqlite3.connect(str(db_path))
+    try:
+        cursor = conn.execute(
+            """SELECT COUNT(*) FROM generation_jobs
+               WHERE project_id = ?
+                 AND job_type = 'generate_asset'
+                 AND status IN ('pending', 'running')""",
+            (project_id,),
+        )
+        return cursor.fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _count_failed_jobs(
+    project_id: str,
+    character_id: str | None = None,
+    emotion: str | None = None,
+) -> int:
+    """Count failed/permanently_failed generate_asset jobs matching filters."""
+    db_path = DATA_DIR / "galgame.db"
+    if not db_path.exists():
+        return 0
+    conn = sqlite3.connect(str(db_path))
+    try:
+        cursor = conn.execute(
+            """SELECT COUNT(*) FROM generation_jobs
+               WHERE project_id = ?
+                 AND job_type = 'generate_asset'
+                 AND status IN ('failed', 'permanently_failed')""",
+            (project_id,),
+        )
+        return cursor.fetchone()[0]
+    finally:
+        conn.close()
+
+
+# ── Concurrency test hook ──────────────────────────────────────────────────
+
+_CONCURRENCY_BARRIER: Any = None
+"""Optional threading.Barrier injected by tests. Waits inside atomic_merge_asset
+right after BEGIN IMMEDIATE to maximise the race window."""
+
+
+# ── Asset handler ──────────────────────────────────────────────────────────
+
+
+def _resolve_base_for_emotion(
+    project: AdaptationProject,
+    character_id: str,
+    emotion: str,
+    job_id: str,
+    project_id: str,
+    degraded_base: bool = False,
+) -> tuple[str | None, str | None]:
+    """Resolve a base image for incremental character sprite generation.
+
+    Returns:
+        (base_asset_id, base_image_path) for a ready base
+        ("RE_ENQUEUE", None) if the caller should re-enqueue and return
+        (None, None) if the caller should fall back to full generation
+    """
+    char = project.characters.get(character_id)
+    if not char or emotion == "neutral":
+        return None, None
+
+    # If we are already a re-enqueued degraded job, skip straight to full gen
+    if degraded_base:
+        return None, None
+
+    # Look for a neutral asset that exists on disk
+    aid = char.asset_ids.get(Emotion.neutral)
+    if aid and aid in project.asset_resources:
+        res = project.asset_resources[aid]
+        img_path = _comfyui_asset_url_to_path(res.url)
+        if img_path and img_path.exists():
+            return aid, str(img_path)
+
+    # Neutral not ready yet — check if a neutral job is in flight
+    pending_neutral = _count_pending_jobs(project_id, character_id=character_id, emotion="neutral")
+    if pending_neutral > 0:
+        # Neutral will complete eventually → re-enqueue this job
+        return "RE_ENQUEUE", None
+
+    # Check how many times neutral has been attempted
+    failed_neutral_count = _count_failed_jobs(project_id, character_id=character_id, emotion="neutral")
+    if failed_neutral_count >= _DEGRADED_MAX_RETRIES:
+        # Neutral keeps failing → degrade to full gen
+        return None, None
+
+    # Neutral hasn't been scheduled yet → let the caller trigger it
+    return "RE_ENQUEUE", None
+
+
 def handle_generate_asset(payload: dict[str, Any]) -> dict[str, Any]:
     """Generate an asset (background, sprite) via ComfyUI/SD.
 
     Performs pre-generation idempotency check (layer 2 interception):
-    if the asset already exists in the project's asset_resources with a
-    matching idempotency_key AND the file exists on disk, returns the
-    existing asset URL directly — skipping ComfyUI entirely.
+    if the asset already exists with a matching idempotency_key AND the
+    file exists on disk, returns the existing asset URL directly.
 
-    For character sprites, detects if this is an incremental generation
-    (non-first emotion) and routes to the inpaint workflow.
+    For character sprites: routes to inpaint workflow when a base image
+    exists.  If a non-neutral emotion has no ready base, the job is
+    re-enqueued (not blocked inline).  On repeated base failures it
+    degrades to full generation.
+
+    The final asset is persisted via atomic_merge_asset() inside a
+    BEGIN IMMEDIATE transaction to prevent concurrent-write TOCTOU.
     """
     from .comfyui import (
         check_asset_exists,
@@ -204,6 +472,7 @@ def handle_generate_asset(payload: dict[str, Any]) -> dict[str, Any]:
     lora_name = payload.get("lora_name", "")
     lora_weight = float(payload.get("lora_weight", 0.8))
     job_id = payload.get("job_id", "")
+    degraded_base: bool = payload.get("degraded_base", False)
 
     try:
         project = _load_project_from_db(project_id)
@@ -226,17 +495,18 @@ def handle_generate_asset(payload: dict[str, Any]) -> dict[str, Any]:
         base_asset_id: str | None = None
         base_image_path: str | None = None
 
-        if target_type == "character_sprite" and character_id in project.characters:
-            char = project.characters[character_id]
-            for existing_emotion, aid in char.asset_ids.items():
-                if aid in project.asset_resources:
-                    base_res = project.asset_resources[aid]
-                    base_local = _comfyui_asset_url_to_path(base_res.url)
-                    if base_local is not None and base_local.exists():
-                        base_asset_id = aid
-                        base_image_path = str(base_local)
-                        print(f"[worker] Incremental mode: using base {aid} -> {base_image_path}")
-                        break
+        if target_type == "character_sprite" and character_id:
+            base_result = _resolve_base_for_emotion(
+                project, character_id, emotion, job_id, project_id,
+                degraded_base=degraded_base,
+            )
+            if base_result[0] == "RE_ENQUEUE":
+                _re_enqueue_job(job_id, project_id, payload)
+                return {"status": "ok", "re_enqueued": True, "reason": "waiting_for_base"}
+            base_asset_id = base_result[0]
+            base_image_path = base_result[1]
+            if base_asset_id:
+                print(f"[worker] Incremental mode: using base {base_asset_id} -> {base_image_path}")
 
         # ── Generate image ──
         if target_type == "background":
@@ -264,7 +534,15 @@ def handle_generate_asset(payload: dict[str, Any]) -> dict[str, Any]:
         if not asset_url:
             return {"status": "error", "error": "Asset generation returned no URL"}
 
-        # ── Save asset to project with idempotency_key ──
+        # ── Persist base_asset_id from generate result ──
+        from_generation = result.get("base_asset_id")
+        if from_generation and base_asset_id is None:
+            base_asset_id = from_generation
+        cached_base = result.get("cached_base_id")
+        if cached_base and base_asset_id is None:
+            base_asset_id = cached_base
+
+        # ── Atomic merge ──
         asset_id = f"ast_{uuid4().hex[:8]}"
         resource = AssetResource(
             id=asset_id,
@@ -275,16 +553,18 @@ def handle_generate_asset(payload: dict[str, Any]) -> dict[str, Any]:
             base_asset_id=base_asset_id,
         )
 
-        if project is not None:
-            project.asset_resources[asset_id] = resource
+        lock = _get_project_lock(project_id)
+        with lock:
+            ok = atomic_merge_asset(
+                project_id, resource,
+                scene_id=scene_id if target_type == "background" else None,
+                character_id=character_id if target_type == "character_sprite" else None,
+                emotion=Emotion(emotion) if target_type == "character_sprite" and emotion else None,
+                base_asset_id=base_asset_id,
+            )
 
-            if target_type == "background" and scene_id and scene_id in project.scenes:
-                project.scenes[scene_id].background_id = asset_id
-
-            if target_type == "character_sprite" and character_id and character_id in project.characters:
-                project.characters[character_id].asset_ids[Emotion(emotion)] = asset_id
-
-            _save_project_to_db_slim(project)
+        if not ok:
+            return {"status": "error", "error": f"Project {project_id} not found during merge"}
 
         return {
             "status": "ok",
@@ -295,6 +575,7 @@ def handle_generate_asset(payload: dict[str, Any]) -> dict[str, Any]:
             "prompt_id": result.get("prompt_id"),
             "cached": False,
             "base_asset_id": base_asset_id,
+            "degraded_base": degraded_base,
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
