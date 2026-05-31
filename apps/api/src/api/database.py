@@ -4,10 +4,6 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine, text as sa_text
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from project_model.schema import (
     AdaptationProject,
@@ -17,6 +13,21 @@ from project_model.schema import (
     JobStatus,
     ParseDraft,
 )
+from project_model.schema_version import MIGRATION_LOG_TABLE, REQUIRED_MIGRATIONS
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    create_engine,
+    inspect,
+)
+from sqlalchemy import (
+    text as sa_text,
+)
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 _DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 _DEFAULT_DB = _DEFAULT_DATA_DIR / "galgame.db"
@@ -64,6 +75,7 @@ class GenerationJobRow(Base):
     result = Column(Text, default="{}")
     error = Column(Text, nullable=True)
     retry_count = Column(Integer, default=0)
+    locked_until = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -81,8 +93,40 @@ class ExportRow(Base):
 
 
 def init_db():
+    is_new_database = not inspect(engine).has_table("generation_jobs")
     Base.metadata.create_all(engine)
     _migrate_add_idempotency_key()
+    if is_new_database and engine.dialect.name == "sqlite":
+        _bootstrap_schema_version()
+
+
+def _bootstrap_schema_version() -> None:
+    """Record the current schema for databases created directly from metadata."""
+    conn = engine.connect()
+    try:
+        conn.execute(sa_text(f"""
+            CREATE TABLE IF NOT EXISTS {MIGRATION_LOG_TABLE} (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                version     TEXT    NOT NULL,
+                name        TEXT    NOT NULL UNIQUE,
+                description TEXT    NOT NULL DEFAULT '',
+                checksum    TEXT    NOT NULL,
+                applied_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                duration_ms INTEGER
+            )
+        """))
+        for name in REQUIRED_MIGRATIONS:
+            conn.execute(
+                sa_text(f"""
+                    INSERT OR IGNORE INTO {MIGRATION_LOG_TABLE}
+                        (version, name, description, checksum, duration_ms)
+                    VALUES ('V2', :name, 'Fresh database bootstrap', 'bootstrap', 0)
+                """),
+                {"name": name},
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _migrate_add_idempotency_key():
@@ -126,10 +170,24 @@ def load_project(session: Session, project_id: str) -> AdaptationProject | None:
 
 
 def delete_project(session: Session, project_id: str) -> bool:
-    """Delete a project and all related data. Returns True if found."""
+    """Delete a project and all related data. Returns True if found.
+
+    Also removes export zip files from disk before deleting DB rows.
+    """
     row = session.get(ProjectRow, project_id)
     if row is None:
         return False
+
+    # Clean up export zip files on disk
+    export_rows = session.query(ExportRow).filter(ExportRow.project_id == project_id).all()
+    for erow in export_rows:
+        try:
+            fp = Path(erow.file_path)
+            if fp.exists():
+                fp.unlink()
+        except Exception:
+            pass  # best-effort cleanup
+
     session.query(ParseDraftRow).filter(ParseDraftRow.project_id == project_id).delete()
     session.query(GenerationJobRow).filter(GenerationJobRow.project_id == project_id).delete()
     session.query(ExportRow).filter(ExportRow.project_id == project_id).delete()

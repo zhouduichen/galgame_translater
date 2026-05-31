@@ -304,6 +304,15 @@ def download_export(project_id: str, export_id: str):
     if not file_path.exists():
         raise HTTPException(404, "Export file not found on disk")
 
+    # Path traversal protection: resolve symlinks and check prefix
+    try:
+        resolved = file_path.resolve(strict=True)
+    except (FileNotFoundError, RuntimeError, OSError):
+        raise HTTPException(404, "Export file not found on disk")
+    allowed_prefix = Path(export.file_path).parent.resolve(strict=False)
+    if not str(resolved).startswith(str(allowed_prefix)):
+        raise HTTPException(400, "Invalid export path")
+
     return FileResponse(
         path=str(file_path),
         media_type="application/zip",
