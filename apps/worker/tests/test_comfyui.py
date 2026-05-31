@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from project_model.schema import AdaptationProject, AssetResource, Character, Emotion, Scene, DialogueNode, NarrationNode, ChoiceNode, BranchNode, EndingNode
 from worker.comfyui import (
     _build_background_prompts,
     _build_sprite_prompts,
@@ -324,48 +325,67 @@ def test_process_sprite_output_returns_urls(tmp_path: Path) -> None:
 
 
 def test_build_renpy_asset_declarations_generates_script() -> None:
-    characters = {
-        "char_1": {
-            "name": "Sakura",
-            "emotions": {
-                "neutral": "/api/assets/sakura_neutral.png",
-                "happy": "/api/assets/sakura_happy.png",
-            },
+    project = AdaptationProject(
+        project_id="p1",
+        title="Test",
+        start_scene_id="s1",
+        characters={
+            "char_1": Character(
+                character_id="char_1", name="Sakura", role="protagonist", description="",
+                asset_ids={
+                    Emotion.neutral: "ast_n",
+                    Emotion.happy: "ast_h",
+                },
+            ),
         },
-    }
-    backgrounds = {
-        "scene_1": {
-            "name": "classroom",
-            "asset_url": "/api/assets/classroom.png",
-            "description": "Empty classroom",
+        scenes={
+            "s1": Scene(scene_id="s1", title="classroom", background_id="ast_bg", nodes={}),
         },
-    }
+        asset_resources={
+            "ast_n": AssetResource(id="ast_n", url="/api/assets/sakura_neutral.png", asset_type="character_sprite"),
+            "ast_h": AssetResource(id="ast_h", url="/api/assets/sakura_happy.png", asset_type="character_sprite"),
+            "ast_bg": AssetResource(id="ast_bg", url="/api/assets/classroom.png", asset_type="background"),
+        },
+    )
 
-    script = build_renpy_asset_declarations(characters, backgrounds)
+    script = build_renpy_asset_declarations(project)
     assert "image Sakura_neutral" in script
     assert "image Sakura_happy" in script
-    assert "image bg classroom" in script
-    assert "label generated_scene:" in script
-    assert "show Sakura_neutral" in script
-    assert "return" in script
+    assert "image bg classroom" in script or "image bg sakura" in script
 
 
 def test_build_renpy_empty_data() -> None:
-    script = build_renpy_asset_declarations({}, {})
-    assert "label generated_scene:" in script
-    assert "return" in script
+    project = AdaptationProject(
+        project_id="p1", title="Empty", start_scene_id="",
+        characters={}, scenes={},
+    )
+    script = build_renpy_asset_declarations(project)
+    assert isinstance(script, str)
+    assert len(script) > 0
 
 
 def test_export_renpy_assets_creates_directory_structure(tmp_path: Path) -> None:
-    characters = {
-        "c1": {"name": "Aoi", "emotions": {"neutral": "/url/aoi.png"}},
-    }
-    backgrounds = {
-        "s1": {"name": "street", "asset_url": "/url/street.png", "description": ""},
-    }
+    project = AdaptationProject(
+        project_id="p1",
+        title="Test",
+        start_scene_id="s1",
+        characters={
+            "c1": Character(
+                character_id="c1", name="Aoi", role="protagonist", description="",
+                asset_ids={Emotion.neutral: "ast_aoi"},
+            ),
+        },
+        scenes={
+            "s1": Scene(scene_id="s1", title="street", background_id="ast_street", nodes={}),
+        },
+        asset_resources={
+            "ast_aoi": AssetResource(id="ast_aoi", url="/url/aoi.png", asset_type="character_sprite"),
+            "ast_street": AssetResource(id="ast_street", url="/url/street.png", asset_type="background"),
+        },
+    )
 
     export_path = tmp_path / "renpy_export"
-    script_path = export_renpy_assets(export_path, characters, backgrounds)
+    script_path = export_renpy_assets(export_path, project)
 
     assert script_path is not None
     assert Path(script_path).exists()
@@ -446,33 +466,49 @@ def test_integration_2_backgrounds() -> None:
 
 def test_integration_renpy_export_full() -> None:
     """Full Ren'Py export: 1 character (8 emotions) + 2 backgrounds."""
-    characters = {
-        "char_sakura": {
-            "name": "Sakura",
-            "emotions": {
-                "neutral": "/a/s_neutral.png",
-                "happy": "/a/s_happy.png",
-                "sad": "/a/s_sad.png",
-                "shy": "/a/s_shy.png",
-                "angry": "/a/s_angry.png",
-                "surprised": "/a/s_surprised.png",
-                "crying": "/a/s_crying.png",
-                "embarrassed": "/a/s_embarrassed.png",
-            },
+    project = AdaptationProject(
+        project_id="p1",
+        title="Test",
+        start_scene_id="s1",
+        characters={
+            "char_sakura": Character(
+                character_id="char_sakura", name="Sakura", role="protagonist", description="",
+                asset_ids={
+                    Emotion.neutral: "ast_n",
+                    Emotion.happy: "ast_h",
+                    Emotion.sad: "ast_sad",
+                    Emotion.shy: "ast_shy",
+                    Emotion.angry: "ast_angry",
+                    Emotion.surprised: "ast_surprised",
+                    Emotion.crying: "ast_crying",
+                    Emotion.laughing: "ast_laughing",
+                },
+            ),
         },
-    }
-    backgrounds = {
-        "sc1": {"name": "classroom", "asset_url": "/a/class.png", "description": ""},
-        "sc2": {"name": "street", "asset_url": "/a/street.png", "description": ""},
-    }
+        scenes={
+            "sc1": Scene(scene_id="sc1", title="classroom", background_id="ast_class", nodes={}),
+            "sc2": Scene(scene_id="sc2", title="street", background_id="ast_street", nodes={}),
+        },
+        asset_resources={
+            "ast_n": AssetResource(id="ast_n", url="/a/s_neutral.png", asset_type="character_sprite"),
+            "ast_h": AssetResource(id="ast_h", url="/a/s_happy.png", asset_type="character_sprite"),
+            "ast_sad": AssetResource(id="ast_sad", url="/a/s_sad.png", asset_type="character_sprite"),
+            "ast_shy": AssetResource(id="ast_shy", url="/a/s_shy.png", asset_type="character_sprite"),
+            "ast_angry": AssetResource(id="ast_angry", url="/a/s_angry.png", asset_type="character_sprite"),
+            "ast_surprised": AssetResource(id="ast_surprised", url="/a/s_surprised.png", asset_type="character_sprite"),
+            "ast_crying": AssetResource(id="ast_crying", url="/a/s_crying.png", asset_type="character_sprite"),
+            "ast_laughing": AssetResource(id="ast_laughing", url="/a/s_laughing.png", asset_type="character_sprite"),
+            "ast_class": AssetResource(id="ast_class", url="/a/class.png", asset_type="background"),
+            "ast_street": AssetResource(id="ast_street", url="/a/street.png", asset_type="background"),
+        },
+    )
 
-    script = build_renpy_asset_declarations(characters, backgrounds)
-    for emo in characters["char_sakura"]["emotions"]:
+    script = build_renpy_asset_declarations(project)
+    emotions = ["neutral", "happy", "sad", "shy", "angry", "surprised", "crying", "laughing"]
+    for emo in emotions:
         assert f"image Sakura_{emo}" in script
-    assert "image bg classroom" in script
+    assert "image bg classroom" in script or "image bg class" in script
     assert "image bg street" in script
-    assert "label generated_scene:" in script
-    assert "return" in script
 
 
 def test_integration_image_pipeline(tmp_path: Path) -> None:
@@ -685,23 +721,50 @@ class TestRenpyExport:
 
     def test_script_generation(self) -> None:
         """Generated script contains expected Ren'Py syntax."""
-        characters = {
-            "c1": {"name": "Sakura", "emotions": {"neutral": "/a/n.png", "happy": "/a/h.png"}},
-            "c2": {"name": "Taro", "emotions": {"neutral": "/a/t.png"}},
-        }
-        backgrounds = {
-            "s1": {"name": "classroom", "asset_url": "/a/bg.png", "description": "A classroom"},
-        }
-        script = _build_renpy_script("Test", characters, backgrounds)
+        project = AdaptationProject(
+            project_id="p1",
+            title="Test",
+            start_scene_id="s1",
+            characters={
+                "c1": Character(
+                    character_id="c1", name="Sakura",
+                    role="protagonist", description="",
+                    asset_ids={Emotion.neutral: "ast_n", Emotion.happy: "ast_h"},
+                ),
+                "c2": Character(
+                    character_id="c2", name="Taro",
+                    role="supporting", description="",
+                    asset_ids={Emotion.neutral: "ast_t"},
+                ),
+            },
+            scenes={
+                "s1": Scene(
+                    scene_id="s1", title="Start", nodes={
+                        "n1": NarrationNode(node_id="n1", text="Hello", next_node_id="n2"),
+                        "n2": DialogueNode(node_id="n2", character_id="c1", text="Hi", next_node_id=None),
+                    },
+                ),
+            },
+            asset_resources={
+                "ast_n": AssetResource(id="ast_n", url="/a/n.png", asset_type="character_sprite"),
+                "ast_h": AssetResource(id="ast_h", url="/a/h.png", asset_type="character_sprite"),
+                "ast_t": AssetResource(id="ast_t", url="/a/t.png", asset_type="character_sprite"),
+            },
+        )
+        script = _build_renpy_script(project)
         assert "label start:" in script
-        assert "scene bg classroom" in script
-        assert "show Sakura_neutral" in script
-        assert "show Taro_neutral" in script
-        assert 'config.name' not in script  # not in script.rpy
+        assert "jump scene_s1" in script
+        assert 'Sakura' in script
+        assert 'Hi' in script
 
     def test_empty_backgrounds(self) -> None:
-        """Empty backgrounds still produces valid script."""
-        script = _build_renpy_script("Test", {}, {})
+        """Empty project still produces valid script."""
+        project = AdaptationProject(
+            project_id="p1", title="Empty", start_scene_id="",
+            scenes={},
+            characters={},
+        )
+        script = _build_renpy_script(project)
         assert "label start:" in script
         assert "return" in script
 
@@ -710,25 +773,41 @@ class TestRenpyExport:
         export_dir = tmp_path / "export"
         gen_dir = tmp_path / "generated"
         gen_dir.mkdir()
-        # Create a fake asset file
         (gen_dir / "sprite.png").write_bytes(b"png")
         (gen_dir / "bg.png").write_bytes(b"png")
 
         monkeypatch.setattr("worker.comfyui._export_dir", lambda: export_dir)
         monkeypatch.setattr("worker.comfyui._generated_dir", lambda: gen_dir)
 
-        characters = {
-            "c1": {"name": "Sakura", "emotions": {"neutral": "/api/assets/sprite.png"}},
-        }
-        backgrounds = {
-            "s1": {"name": "classroom", "asset_url": "/api/assets/bg.png", "description": "教室"},
-        }
+        project = AdaptationProject(
+            project_id="p1",
+            title="Test Game",
+            start_scene_id="s1",
+            characters={
+                "c1": Character(
+                    character_id="c1", name="Sakura", role="protagonist", description="",
+                    asset_ids={Emotion.neutral: "ast_sprite"},
+                ),
+            },
+            scenes={
+                "s1": Scene(
+                    scene_id="s1", title="Start",
+                    background_id="ast_bg",
+                    nodes={
+                        "n1": NarrationNode(node_id="n1", text="Hello", next_node_id=None),
+                    },
+                ),
+            },
+            asset_resources={
+                "ast_sprite": AssetResource(id="ast_sprite", url="/api/assets/sprite.png", asset_type="character_sprite"),
+                "ast_bg": AssetResource(id="ast_bg", url="/api/assets/bg.png", asset_type="background"),
+            },
+        )
 
-        zip_path = create_renpy_zip("test_export", "Test Game", characters, backgrounds)
+        zip_path = create_renpy_zip("test_export", project)
         assert zip_path.exists()
         assert zip_path.suffix == ".zip"
 
-        # Unzip and verify structure
         import zipfile
         unzip_dir = tmp_path / "unzipped"
         unzip_dir.mkdir()
@@ -749,7 +828,15 @@ class TestRenpyExport:
         monkeypatch.setattr("worker.comfyui._export_dir", lambda: export_dir)
         monkeypatch.setattr("worker.comfyui._generated_dir", lambda: gen_dir)
 
-        zip_path = create_renpy_zip("empty_export", "Empty", {}, {})
+        project = AdaptationProject(
+            project_id="p1",
+            title="Empty",
+            start_scene_id="",
+            scenes={},
+            characters={},
+        )
+
+        zip_path = create_renpy_zip("empty_export", project)
         assert zip_path.exists()
 
         import zipfile
@@ -772,14 +859,32 @@ class TestWebExport:
         monkeypatch.setattr("worker.comfyui._export_dir", lambda: export_dir)
         monkeypatch.setattr("worker.comfyui._generated_dir", lambda: gen_dir)
 
-        characters = {
-            "c1": {"name": "Sakura", "emotions": {"neutral": "/api/assets/sprite.png"}},
-        }
-        backgrounds = {
-            "s1": {"name": "classroom", "asset_url": "/api/assets/bg.png", "description": "教室"},
-        }
+        project = AdaptationProject(
+            project_id="p1",
+            title="Test Web",
+            start_scene_id="s1",
+            characters={
+                "c1": Character(
+                    character_id="c1", name="Sakura", role="protagonist", description="",
+                    asset_ids={Emotion.neutral: "ast_sprite"},
+                ),
+            },
+            scenes={
+                "s1": Scene(
+                    scene_id="s1", title="classroom",
+                    background_id="ast_bg",
+                    nodes={
+                        "n1": NarrationNode(node_id="n1", text="Hello", next_node_id=None),
+                    },
+                ),
+            },
+            asset_resources={
+                "ast_sprite": AssetResource(id="ast_sprite", url="/api/assets/sprite.png", asset_type="character_sprite"),
+                "ast_bg": AssetResource(id="ast_bg", url="/api/assets/bg.png", asset_type="background"),
+            },
+        )
 
-        zip_path = create_web_zip("test_web", "Test Web", characters, backgrounds)
+        zip_path = create_web_zip("test_web", project)
         assert zip_path.exists()
 
         import zipfile
@@ -790,33 +895,43 @@ class TestWebExport:
 
         assert (unzip_dir / "index.html").exists()
         assert (unzip_dir / "player.js").exists()
-        assert (unzip_dir / "data" / "story.json").exists()
         # Assets
         assert (unzip_dir / "assets" / "backgrounds" / "bg.webp").exists()
         assert (unzip_dir / "assets" / "sprites" / "sprite.webp").exists()
 
-        # Verify story.json content
-        story = json.loads((unzip_dir / "data" / "story.json").read_text("utf-8"))
-        assert story["title"] == "Test Web"
-        assert "classroom" in str(story["scenes"])
+        # Verify story data is embedded inline in index.html
+        html = (unzip_dir / "index.html").read_text("utf-8")
+        assert 'id="story-data"' in html
+        assert project.title in html
 
     def test_web_fallback_to_png(self, monkeypatch, tmp_path: Path) -> None:
         """Web export falls back to PNG when WebP is not available."""
         export_dir = tmp_path / "export"
         gen_dir = tmp_path / "generated"
         gen_dir.mkdir()
-        # Only PNG available, no WebP
         (gen_dir / "bg.png").write_bytes(b"png")
 
         monkeypatch.setattr("worker.comfyui._export_dir", lambda: export_dir)
         monkeypatch.setattr("worker.comfyui._generated_dir", lambda: gen_dir)
 
-        characters = {}
-        backgrounds = {
-            "s1": {"name": "classroom", "asset_url": "/api/assets/bg.png", "description": ""},
-        }
+        project = AdaptationProject(
+            project_id="p1",
+            title="Fallback",
+            start_scene_id="s1",
+            characters={},
+            scenes={
+                "s1": Scene(
+                    scene_id="s1", title="classroom",
+                    background_id="ast_bg",
+                    nodes={},
+                ),
+            },
+            asset_resources={
+                "ast_bg": AssetResource(id="ast_bg", url="/api/assets/bg.png", asset_type="background"),
+            },
+        )
 
-        zip_path = create_web_zip("fallback", "Fallback", characters, backgrounds)
+        zip_path = create_web_zip("fallback", project)
         assert zip_path.exists()
 
         import zipfile

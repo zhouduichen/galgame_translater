@@ -26,7 +26,18 @@ from typing import Any, Callable
 
 import httpx
 from PIL import Image
-from project_model.schema import AssetResource
+from project_model.schema import (
+    AdaptationProject,
+    AssetResource,
+    BranchNode,
+    ChoiceNode,
+    DialogueNode,
+    Emotion,
+    EndingNode,
+    NarrationNode,
+    Scene,
+    SceneTransitionNode,
+)
 
 try:
     import websockets
@@ -1085,13 +1096,12 @@ async def generate_character_sprite_async(
 
 
 def build_renpy_asset_declarations(
-    characters: dict[str, dict[str, Any]],
-    backgrounds: dict[str, dict[str, Any]],
+    project: AdaptationProject,
 ) -> str:
     """Generate a ``generated_assets.rpy`` script with image declarations.
 
-    ``characters``: {char_id: {name, emotions: {emotion: asset_url}}}
-    ``backgrounds``: {scene_id: {name, asset_url, description}}
+    Uses project.characters → asset_ids and project.scenes → background_id
+    to build Ren'Py ``image`` statements for sprites and backgrounds.
     """
     lines = [
         "# This file is auto-generated — do not edit manually.",
@@ -1103,40 +1113,23 @@ def build_renpy_asset_declarations(
     ]
 
     # Character image declarations
-    for cid, cdata in characters.items():
-        char_name = cdata.get("name", cid)
-        for emotion, asset_url in cdata.get("emotions", {}).items():
-            if asset_url:
-                tag = f"{char_name}_{emotion}"
-                lines.append(f"image {tag} = \"{asset_url}\"")
+    for cid, char in project.characters.items():
+        for emotion, asset_id in char.asset_ids.items():
+            if asset_id in project.asset_resources:
+                url = project.asset_resources[asset_id].url
+                tag = f"{_sanitize_label(char.name)}_{emotion.value}"
+                lines.append(f"image {tag} = \"{url}\"")
         lines.append("")
 
     # Background declarations
-    for sid, sdata in backgrounds.items():
-        bg_name = sdata.get("name", sid)
-        asset_url = sdata.get("asset_url", "")
-        if asset_url:
-            lines.append(f"image bg {bg_name} = \"{asset_url}\"")
+    for sid, scene in project.scenes.items():
+        if scene.background_id and scene.background_id in project.asset_resources:
+            url = project.asset_resources[scene.background_id].url
+            bg_filename = url.rsplit("/", 1)[-1].rsplit(".", 1)[0] if url else ""
+            if bg_filename:
+                lines.append(f"image bg {bg_filename} = \"{url}\"")
 
     lines.append("")
-    lines.append("# --- Storyboard template ---")
-    lines.append("")
-    lines.append("label generated_scene:")
-    lines.append("    # TODO: customize your scene order and dialogue")
-    lines.append("")
-
-    for sid, sdata in backgrounds.items():
-        bg_name = sdata.get("name", sid)
-        lines.append(f"    scene bg {bg_name}")
-        for cid, cdata in characters.items():
-            char_name = cdata.get("name", cid)
-            first_emotion = next(iter(cdata.get("emotions", {}).keys()), "neutral")
-            lines.append(f"    show {char_name}_{first_emotion}")
-            lines.append(f"    {char_name} \"# TODO: dialogue for {sid}\"")
-            lines.append("")
-        lines.append("")
-
-    lines.append("    return")
     return "\n".join(lines)
 
 
@@ -1351,8 +1344,7 @@ def check_comfyui_health() -> dict[str, Any]:
 
 def export_renpy_assets(
     export_path: str | Path,
-    characters: dict[str, dict[str, Any]],
-    backgrounds: dict[str, dict[str, Any]],
+    project: AdaptationProject,
 ) -> str | None:
     """Write generated asset declarations to an organized Ren'Py export directory.
 
@@ -1376,7 +1368,7 @@ def export_renpy_assets(
         d.mkdir(parents=True, exist_ok=True)
 
     # Write asset declarations script
-    script = build_renpy_asset_declarations(characters, backgrounds)
+    script = build_renpy_asset_declarations(project)
     script_path = scripts_dir / "generated_assets.rpy"
     script_path.write_text(script, encoding="utf-8")
 
@@ -1464,37 +1456,161 @@ define gui.choice_button_height = 36
 ''', encoding="utf-8")
 
 
-def _build_renpy_script(project_title: str, characters: dict[str, dict[str, Any]],
-                        backgrounds: dict[str, dict[str, Any]]) -> str:
-    """Generate a *script.rpy* with scene-by-scene story flow.
+def _sanitize_label(name: str) -> str:
+    """Convert arbitrary text to a valid ASCII Ren'Py label."""
+    safe = "".join(c if c.isalnum() else "_" for c in name).strip("_")
+    return safe if safe else "scene"
 
-    Iterates *backgrounds* in order, inserting character dialogue
-    declarations.  This is a linear approximation — the real branching
-    logic lives in the Ren'Py ``label`` structure.
+
+def _renpy_escape(text: str) -> str:
+    """Escape Ren'Py string content: double any embedded quotes."""
+    return text.replace('"', '""')
+
+
+def _build_node_graph(
+    project: AdaptationProject,
+    scene: Scene,
+) -> list[str]:
+    """Generate Ren'Py label blocks for every node in a scene.
+
+    Each node becomes a unique ``label`` so branching/jumps target correctly.
+    Returns a list of Ren'Py source lines.
     """
-    lines = [
-        "# Auto-generated story script",
+    lines: list[str] = []
+    lab = _sanitize_label
+    esc = _renpy_escape
+
+    first_nid = scene.first_node_id()
+    if not first_nid:
+        return lines
+
+    # Walk the node chain, emitting labels in play order
+    visited: set[str] = set()
+    nid: str | None = first_nid
+    while nid and nid not in visited:
+        visited.add(nid)
+        node = scene.nodes.get(nid)
+        if node is None:
+            break
+
+        scene_label = f"scene_{scene.scene_id}_{nid}"
+        nid = None  # will be set by each branch below
+
+        match node:
+            case DialogueNode():
+                char = project.characters.get(node.character_id)
+                color = f' color="{char.color}"' if char and char.color else ""
+                char_name = char.name if char else node.character_id
+                emotion_tag = f" (emotion: {node.emotion.value})" if node.emotion != Emotion.neutral else ""
+                lines.append(f"")
+                lines.append(f"label {scene_label}:")
+                lines.append(f"    # {char_name} — {node.emotion.value}")
+                lines.append(f'    {lab(char_name)}{emotion_tag} "{esc(node.text)}"')
+                nid = node.next_node_id
+
+            case NarrationNode():
+                lines.append(f"")
+                lines.append(f"label {scene_label}:")
+                lines.append(f'    "{esc(node.text)}"')
+                nid = node.next_node_id
+
+            case ChoiceNode() as cn:
+                lines.append(f"")
+                lines.append(f"label {scene_label}:")
+                if cn.text:
+                    lines.append(f'    "{esc(cn.text)}"')
+                lines.append("    menu:")
+                for opt in cn.options:
+                    opt_lab = f"{scene_label}_opt_{opt.option_id}"
+                    cond = f" if {esc(opt.condition)}" if opt.condition else ""
+                    lines.append(f'        "{esc(opt.text)}"{cond}:')
+                    lines.append(f"            jump {_sanitize_label(f'scene_{scene.scene_id}_{opt.next_node_id}')}")
+                # After choices, fall through to return
+                lines.append("    pass")
+
+            case SceneTransitionNode() as stn:
+                target_lab = _sanitize_label(f"scene_{stn.target_scene_id}")
+                lines.append(f"")
+                lines.append(f"label {scene_label}:")
+                lines.append(f"    # Transition to scene: {stn.target_scene_id}")
+                lines.append(f"    jump {target_lab}")
+
+            case BranchNode() as bn:
+                lines.append(f"")
+                lines.append(f"label {scene_label}:")
+                lines.append(f"    if {esc(bn.condition)}:")
+                lines.append(f"        jump {lab(f'scene_{scene.scene_id}_{bn.true_next}')}")
+                lines.append("    else:")
+                lines.append(f"        jump {lab(f'scene_{scene.scene_id}_{bn.false_next}')}")
+
+            case EndingNode() as en:
+                lines.append(f"")
+                lines.append(f"label {scene_label}:")
+                if en.epilogue:
+                    lines.append(f'    "{esc(en.epilogue)}"')
+                lines.append(f"    # {en.ending_type} ending")
+                lines.append("    return")
+
+    return lines
+
+
+def _build_renpy_script(project: AdaptationProject) -> str:
+    """Generate a *script.rpy* with complete story flow from AdaptationProject.
+
+    Produces real character definitions, scene backgrounds, labelled nodes
+    for dialogue/narration/choice/branch/transition/ending, and proper
+    ``menu`` blocks for player choices.
+    """
+    lines: list[str] = [
+        "# Auto-generated story script — do not edit manually",
+        f'# {datetime.now(timezone.utc).isoformat()}',
         "",
-        f'define narrator = Character(None, kind=nvl)',
-        "",
-        "label start:",
     ]
-    for sid, bg_data in backgrounds.items():
-        bg_name = bg_data.get("name", sid)
-        lines.append(f"")
-        lines.append(f"    # Scene: {bg_name}")
-        lines.append(f"    scene bg {bg_name}")
-        lines.append(f"")
-        lines.append(f'    "{bg_data.get("description", "")}"')
-        # Show each character with their emotions
-        for cid, char_data in characters.items():
-            char_name = char_data.get("name", cid)
-            for emotion in char_data.get("emotions", {}):
-                lines.append(f"    show {char_name}_{emotion}")
-                lines.append(f'    {char_name} "..."')
+
+    # Character definitions
+    for cid, char in project.characters.items():
+        color = f', color="{char.color}"' if char.color else ""
+        lines.append(f'define {_sanitize_label(char.name)} = Character("{_renpy_escape(char.name)}"{color})')
+    if project.characters:
+        lines.append("")
+    lines.append("define narrator = Character(None, kind=nvl)")
     lines.append("")
-    lines.append('    "故事结束。"')
-    lines.append("    return")
+
+    # Entry point
+    lines.append(f"label start:")
+    first_scene_lab = _sanitize_label(f"scene_{project.start_scene_id}")
+    lines.append(f"    jump {first_scene_lab}")
+    lines.append("")
+
+    # Scene-by-scene node graphs
+    for sid, scene in project.scenes.items():
+        scene_lab = _sanitize_label(f"scene_{sid}")
+        lines.append("#" + "=" * 70)
+        lines.append(f"# Scene: {scene.title} ({sid})")
+        lines.append("#" + "=" * 70)
+        lines.append(f"")
+        lines.append(f"label {scene_lab}:")
+        if scene.background_id and scene.background_id in project.asset_resources:
+            bg_res = project.asset_resources[scene.background_id]
+            bg_filename = bg_res.url.rsplit("/", 1)[-1] if bg_res.url else ""
+            if bg_filename:
+                lines.append(f"    scene bg {bg_filename.rsplit('.', 1)[0]}")
+        lines.append(f"    # Scene description: {_renpy_escape(scene.description)}")
+        lines.append("")
+        # Jump to first node label (generated in _build_node_graph)
+        first_nid = scene.first_node_id()
+        if first_nid:
+            lines.append(f"    jump {_sanitize_label(f'scene_{sid}_{first_nid}')}")
+
+        lines.append("")
+        # Emit node blocks
+        node_lines = _build_node_graph(project, scene)
+        lines.extend(node_lines)
+        lines.append("")
+
+    lines.append("")
+    lines.append("# === End === ")
+    lines.append("return")
     return "\n".join(lines)
 
 
@@ -1503,11 +1619,9 @@ def _build_renpy_script(project_title: str, characters: dict[str, dict[str, Any]
 
 def create_renpy_zip(
     export_id: str,
-    project_title: str,
-    characters: dict[str, dict[str, Any]],
-    backgrounds: dict[str, dict[str, Any]],
+    project: AdaptationProject,
 ) -> Path:
-    """Create a complete, runnable Ren'Py project zip file.
+    """Create a complete, runnable Ren'Py project zip file from project data.
 
     Returns the path to the generated *<title>_renpy.zip*.
     """
@@ -1530,30 +1644,33 @@ def create_renpy_zip(
 
     try:
         # 1. Write Ren'Py skeleton files
-        _build_renpy_skeleton(staging, project_title)
+        _build_renpy_skeleton(staging, project.title)
 
         # 2. Write generated_assets.rpy (image declarations)
-        asset_script = build_renpy_asset_declarations(characters, backgrounds)
+        asset_script = build_renpy_asset_declarations(project)
         (game_dir / "generated_assets.rpy").write_text(asset_script, encoding="utf-8")
 
         # 3. Write script.rpy (story flow)
-        story_script = _build_renpy_script(project_title, characters, backgrounds)
+        story_script = _build_renpy_script(project)
         (game_dir / "script.rpy").write_text(story_script, encoding="utf-8")
 
         # 4. Copy background images
-        for bg_data in backgrounds.values():
-            url = bg_data.get("asset_url", "")
-            if url:
-                _copy_image_asset(url, bg_img_dir)
+        for scene in project.scenes.values():
+            if scene.background_id and scene.background_id in project.asset_resources:
+                url = project.asset_resources[scene.background_id].url
+                if url:
+                    _copy_image_asset(url, bg_img_dir)
 
         # 5. Copy sprite images
-        for char_data in characters.values():
-            for url in char_data.get("emotions", {}).values():
-                if url:
-                    _copy_image_asset(url, sprite_img_dir)
+        for char in project.characters.values():
+            for asset_id in char.asset_ids.values():
+                if asset_id in project.asset_resources:
+                    url = project.asset_resources[asset_id].url
+                    if url:
+                        _copy_image_asset(url, sprite_img_dir)
 
         # 6. Create the zip
-        safe_title = project_title.replace(" ", "_").replace("/", "_") or "project"
+        safe_title = project.title.replace(" ", "_").replace("/", "_") or "project"
         zip_name = f"{safe_title}_renpy.zip"
         zip_path = export_dir / zip_name
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -1571,14 +1688,19 @@ def create_renpy_zip(
 # ── Web player generators ──────────────────────────────────────────────────
 
 
-def _build_web_index_html(title: str) -> str:
-    """Generate a self-contained *index.html* for the standalone web player."""
+def _build_web_index_html(project: AdaptationProject) -> str:
+    """Generate a self-contained *index.html* for the standalone web player.
+
+    Story data is embedded inline as JSON in a ``<script id="story-data">``
+    tag so the player works from ``file://`` protocol without fetch().
+    """
+    story_json = json.dumps(project.model_dump(), ensure_ascii=False)
     return f'''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title}</title>
+<title>{_renpy_escape(project.title)}</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{background:#000;color:#fff;font-family:"Microsoft YaHei","Noto Sans SC",sans-serif;overflow:hidden}}
@@ -1597,6 +1719,7 @@ body{{background:#000;color:#fff;font-family:"Microsoft YaHei","Noto Sans SC",sa
 </style>
 </head>
 <body>
+<script id="story-data" type="application/json">{story_json}</script>
 <div id="game">
   <img id="bg" src="" alt="">
   <img id="sprite" src="" alt="" style="display:none">
@@ -1615,14 +1738,25 @@ body{{background:#000;color:#fff;font-family:"Microsoft YaHei","Noto Sans SC",sa
 
 
 def _build_web_player_js() -> str:
-    """Generate a standalone *player.js* that renders the game from *story.json*."""
-    return '''// Standalone visual novel player
+    """Generate a standalone *player.js* that renders the game.
+
+    Reads story data from ``document.getElementById("story-data").textContent``
+    (embedded inline in index.html) instead of fetch(), so it works offline
+    under ``file://`` protocol.
+    """
+    return '''// Standalone visual novel player (offline-capable)
 (function(){
   var story, currentScene, currentNode, state = {};
 
-  async function init() {
-    var res = await fetch("data/story.json");
-    story = await res.json();
+  function init() {
+    var el = document.getElementById("story-data");
+    if (!el) { document.getElementById("text").textContent = "story-data not found"; return; }
+    try {
+      story = JSON.parse(el.textContent);
+    } catch(e) {
+      document.getElementById("text").textContent = "Invalid story data: " + e.message;
+      return;
+    }
     startScene(story.start_scene_id);
   }
 
@@ -1706,17 +1840,15 @@ def _build_web_player_js() -> str:
 
   window.restartScene = function(){ state = {}; if (currentScene) startScene(Object.keys(story.scenes).find(function(k){ return story.scenes[k] === currentScene; })); };
 
-  init().catch(function(err){ document.getElementById("text").textContent = "加载失败: " + err.message; });
+  init();
 })();
 '''
 
 
-def create_web_zip(export_id: str, project_title: str,
-                   characters: dict[str, dict[str, Any]],
-                   backgrounds: dict[str, dict[str, Any]]) -> Path:
+def create_web_zip(export_id: str, project: AdaptationProject) -> Path:
     """Create a standalone Web player zip file.
 
-    Contains *index.html*, *player.js*, *data/story.json*, and WebP/PNG
+    Contains *index.html* (with inline story JSON), *player.js*, and WebP/PNG
     assets in *assets/backgrounds/* and *assets/sprites/*.
 
     Returns the path to the generated *<title>_web.zip*.
@@ -1730,14 +1862,15 @@ def create_web_zip(export_id: str, project_title: str,
 
     assets_bg = staging / "assets" / "backgrounds"
     assets_sprites = staging / "assets" / "sprites"
-    data_dir = staging / "data"
-    for d in [assets_bg, assets_sprites, data_dir]:
+    for d in [assets_bg, assets_sprites]:
         d.mkdir(parents=True, exist_ok=True)
 
     try:
         # 1. Copy background images (WebP preferred, fallback PNG)
-        for bg_data in backgrounds.values():
-            url = bg_data.get("asset_url", "")
+        for scene in project.scenes.values():
+            if not scene.background_id or scene.background_id not in project.asset_resources:
+                continue
+            url = project.asset_resources[scene.background_id].url
             if not url:
                 continue
             webp_url = url.rsplit(".", 1)[0] + ".webp" if "." in url else url + ".webp"
@@ -1748,8 +1881,11 @@ def create_web_zip(export_id: str, project_title: str,
                 _copy_image_asset(url, assets_bg)
 
         # 2. Copy sprite images
-        for char_data in characters.values():
-            for url in char_data.get("emotions", {}).values():
+        for char in project.characters.values():
+            for asset_id in char.asset_ids.values():
+                if asset_id not in project.asset_resources:
+                    continue
+                url = project.asset_resources[asset_id].url
                 if not url:
                     continue
                 webp_url = url.rsplit(".", 1)[0] + ".webp" if "." in url else url + ".webp"
@@ -1759,47 +1895,16 @@ def create_web_zip(export_id: str, project_title: str,
                 else:
                     _copy_image_asset(url, assets_sprites)
 
-        # 3. Build and write story.json
-        story_data = {
-            "title": project_title,
-            "start_scene_id": "",
-            "characters": {
-                cid: {
-                    "name": cd.get("name", cid),
-                    "emotions": cd.get("emotions", {}),
-                }
-                for cid, cd in characters.items()
-            },
-            "scenes": {},
-            "asset_resources": {},
-            "variables": [],
-        }
-        for sid, bg_data in backgrounds.items():
-            story_data["scenes"][sid] = {
-                "scene_id": sid,
-                "title": bg_data.get("name", sid),
-                "description": bg_data.get("description", ""),
-                "background_id": bg_data.get("_asset_id", ""),
-                "nodes": {
-                    "start": {
-                        "type": "narration",
-                        "node_id": "start",
-                        "text": bg_data.get("description", ""),
-                        "next_node_id": "",
-                    }
-                },
-            }
-        (data_dir / "story.json").write_text(
-            json.dumps(story_data, ensure_ascii=False), encoding="utf-8")
-
-        # 4. Write index.html and player.js
+        # 3. Write index.html (story data embedded inline)
         (staging / "index.html").write_text(
-            _build_web_index_html(project_title), encoding="utf-8")
+            _build_web_index_html(project), encoding="utf-8")
+
+        # 4. Write player.js
         (staging / "player.js").write_text(
             _build_web_player_js(), encoding="utf-8")
 
         # 5. Create zip
-        safe_title = project_title.replace(" ", "_").replace("/", "_") or "project"
+        safe_title = project.title.replace(" ", "_").replace("/", "_") or "project"
         zip_name = f"{safe_title}_web.zip"
         zip_path = export_dir / zip_name
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:

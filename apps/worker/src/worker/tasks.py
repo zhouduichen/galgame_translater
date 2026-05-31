@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
@@ -625,32 +624,8 @@ def handle_export_renpy(payload: dict[str, Any]) -> dict[str, Any]:
     if project is None:
         return {"status": "error", "error": f"Project {project_id} not found"}
 
-    # Build character emotion map
-    characters = {}
-    for cid, char in project.characters.items():
-        emotions = {}
-        for emotion, asset_id in char.asset_ids.items():
-            if asset_id in project.asset_resources:
-                emotions[str(emotion)] = project.asset_resources[asset_id].url
-        characters[cid] = {
-            "name": char.name,
-            "emotions": emotions,
-        }
-
-    # Build background map
-    backgrounds = {}
-    for sid, scene in project.scenes.items():
-        asset_url = ""
-        if scene.background_id and scene.background_id in project.asset_resources:
-            asset_url = project.asset_resources[scene.background_id].url
-        backgrounds[sid] = {
-            "name": scene.title or sid,
-            "asset_url": asset_url,
-            "description": scene.description or "",
-        }
-
     export_id = f"export_{project_id}_renpy_{uuid4().hex[:8]}"
-    zip_path = create_renpy_zip(export_id, project.title, characters, backgrounds)
+    zip_path = create_renpy_zip(export_id, project)
     file_size = zip_path.stat().st_size if zip_path.exists() else 0
 
     # Record in exports table
@@ -662,7 +637,10 @@ def handle_export_renpy(payload: dict[str, Any]) -> dict[str, Any]:
         (
             export_id, project_id, "renpy", str(zip_path), file_size,
             datetime.utcnow().isoformat() + "Z",
-            json.dumps({"characters_count": len(characters), "backgrounds_count": len(backgrounds)}),
+            json.dumps({
+                "characters_count": len(project.characters),
+                "scenes_count": len(project.scenes),
+            }),
         ),
     )
     conn.commit()
@@ -674,8 +652,8 @@ def handle_export_renpy(payload: dict[str, Any]) -> dict[str, Any]:
         "format": "renpy",
         "file_path": str(zip_path),
         "file_size_bytes": file_size,
-        "characters_count": len(characters),
-        "backgrounds_count": len(backgrounds),
+        "characters_count": len(project.characters),
+        "scenes_count": len(project.scenes),
     }
 
 
@@ -688,32 +666,8 @@ def handle_export_web(payload: dict[str, Any]) -> dict[str, Any]:
     if project is None:
         return {"status": "error", "error": f"Project {project_id} not found"}
 
-    # Build character emotion map
-    characters = {}
-    for cid, char in project.characters.items():
-        emotions = {}
-        for emotion, asset_id in char.asset_ids.items():
-            if asset_id in project.asset_resources:
-                emotions[str(emotion)] = project.asset_resources[asset_id].url
-        characters[cid] = {
-            "name": char.name,
-            "emotions": emotions,
-        }
-
-    # Build background map
-    backgrounds = {}
-    for sid, scene in project.scenes.items():
-        asset_url = ""
-        if scene.background_id and scene.background_id in project.asset_resources:
-            asset_url = project.asset_resources[scene.background_id].url
-        backgrounds[sid] = {
-            "name": scene.title or sid,
-            "asset_url": asset_url,
-            "description": scene.description or "",
-        }
-
     export_id = f"export_{project_id}_web_{uuid4().hex[:8]}"
-    zip_path = create_web_zip(export_id, project.title, characters, backgrounds)
+    zip_path = create_web_zip(export_id, project)
     file_size = zip_path.stat().st_size if zip_path.exists() else 0
 
     # Record in exports table
@@ -725,7 +679,10 @@ def handle_export_web(payload: dict[str, Any]) -> dict[str, Any]:
         (
             export_id, project_id, "web", str(zip_path), file_size,
             datetime.utcnow().isoformat() + "Z",
-            json.dumps({"scenes_count": len(backgrounds), "characters_count": len(characters)}),
+            json.dumps({
+                "scenes_count": len(project.scenes),
+                "characters_count": len(project.characters),
+            }),
         ),
     )
     conn.commit()
@@ -737,8 +694,8 @@ def handle_export_web(payload: dict[str, Any]) -> dict[str, Any]:
         "format": "web",
         "file_path": str(zip_path),
         "file_size_bytes": file_size,
-        "scenes_count": len(backgrounds),
-        "characters_count": len(characters),
+        "scenes_count": len(project.scenes),
+        "characters_count": len(project.characters),
     }
 
 
