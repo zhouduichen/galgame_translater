@@ -75,6 +75,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       case "choice":
         newNode = { type: "choice", node_id: nodeId, text: "", options: [] };
         break;
+      case "branch":
+        newNode = { type: "branch", node_id: nodeId, condition: "", true_next: "", false_next: "" };
+        break;
+      case "ending":
+        newNode = { type: "ending", node_id: nodeId, ending_type: "neutral", epilogue: "" };
+        break;
+      case "scene_transition":
+        newNode = { type: "scene_transition", node_id: nodeId, target_scene_id: "", effect: "fade" };
+        break;
       default:
         newNode = { type: "narration", node_id: nodeId, text: "" };
     }

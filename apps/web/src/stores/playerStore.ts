@@ -3,14 +3,16 @@ import type { Project, Scene, StoryNode } from "@/lib/types";
 import { getFirstNodeId } from "@/lib/types";
 import {
   applyChoiceEffects,
+  evaluateBranchCondition,
   getInitialStoryState,
   getNode,
   getNodeAfterChoice,
   getNextLinearNode,
+  resolveBranch,
   type StoryState,
 } from "@/lib/storyRuntime";
 
-export type PlayerStatus = "loading" | "playing" | "waiting_choice" | "transitioning" | "ended" | "error";
+export type PlayerStatus = "loading" | "playing" | "waiting_choice" | "branching" | "transitioning" | "ended" | "error";
 
 export type PlayerState = {
   project: Project | null;
@@ -63,8 +65,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   advance: () => {
-    const { scene, node, goTo } = get();
-    if (!scene || !node) return;
+    const { scene, node, storyState, goTo } = get();
+    if (!scene || !node || !storyState) return;
+
+    if (node.type === "branch") {
+      const target = resolveBranch(scene, node, storyState.variables);
+      if (target) goTo(target);
+      return;
+    }
+
     const next = getNextLinearNode(scene, node);
     if (next) goTo(next);
   },

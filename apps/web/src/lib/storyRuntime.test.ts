@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   applyChoiceEffects,
+  evaluateBranchCondition,
   getInitialStoryState,
   getNodeAfterChoice,
   getNextLinearNode,
 } from "./storyRuntime";
-import type { Project } from "./types";
+import type { Project, StoryVariables } from "./storyRuntime";
+import { resolveBranch } from "./storyRuntime";
 
 const project: Project = {
   project_id: "proj_test",
@@ -77,5 +79,78 @@ describe("storyRuntime", () => {
     const target = getNodeAfterChoice(scene, node.options[0]);
 
     expect(target?.node_id).toBe("n2");
+  });
+
+  describe("evaluateBranchCondition", () => {
+    const vars: StoryVariables = { confidence: 5, has_key: true, name: "Akira" };
+
+    it("returns true for empty condition", () => {
+      expect(evaluateBranchCondition("", vars)).toBe(true);
+    });
+
+    it("evaluates >= correctly", () => {
+      expect(evaluateBranchCondition("confidence >= 3", vars)).toBe(true);
+      expect(evaluateBranchCondition("confidence >= 5", vars)).toBe(true);
+      expect(evaluateBranchCondition("confidence >= 6", vars)).toBe(false);
+    });
+
+    it("evaluates <= correctly", () => {
+      expect(evaluateBranchCondition("confidence <= 5", vars)).toBe(true);
+      expect(evaluateBranchCondition("confidence <= 4", vars)).toBe(false);
+    });
+
+    it("evaluates == with booleans", () => {
+      expect(evaluateBranchCondition("has_key == true", vars)).toBe(true);
+      expect(evaluateBranchCondition("has_key == false", vars)).toBe(false);
+    });
+
+    it("evaluates != correctly", () => {
+      expect(evaluateBranchCondition("name != 'Haruki'", vars)).toBe(true);
+      expect(evaluateBranchCondition("name != 'Akira'", vars)).toBe(false);
+    });
+
+    it("evaluates > and <", () => {
+      expect(evaluateBranchCondition("confidence > 3", vars)).toBe(true);
+      expect(evaluateBranchCondition("confidence > 5", vars)).toBe(false);
+      expect(evaluateBranchCondition("confidence < 6", vars)).toBe(true);
+      expect(evaluateBranchCondition("confidence < 5", vars)).toBe(false);
+    });
+
+    it("defaults to true for unparseable conditions", () => {
+      expect(evaluateBranchCondition("garbage!!!", vars)).toBe(true);
+    });
+  });
+
+  describe("resolveBranch", () => {
+    it("follows true_next when condition matches", () => {
+      const scene = project.scenes.scene_start;
+      // Inject a branch node
+      const branch = {
+        type: "branch" as const,
+        node_id: "br1",
+        condition: "confidence >= 1",
+        true_next: "n2",
+        false_next: "choice",
+      };
+      scene.nodes.br1 = branch;
+      const vars: StoryVariables = { confidence: 5 };
+      const target = resolveBranch(scene, branch, vars);
+      expect(target?.node_id).toBe("n2");
+    });
+
+    it("follows false_next when condition fails", () => {
+      const scene = project.scenes.scene_start;
+      const branch = {
+        type: "branch" as const,
+        node_id: "br2",
+        condition: "confidence >= 10",
+        true_next: "n2",
+        false_next: "choice",
+      };
+      scene.nodes.br2 = branch;
+      const vars: StoryVariables = { confidence: 5 };
+      const target = resolveBranch(scene, branch, vars);
+      expect(target?.node_id).toBe("choice");
+    });
   });
 });

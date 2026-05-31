@@ -254,7 +254,7 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
 
         {/* Add node buttons */}
         <div className="mb-4 flex gap-2">
-          {(["dialogue", "narration", "choice"] as const).map((type) => (
+          {(["dialogue", "narration", "choice", "branch", "ending", "scene_transition"] as const).map((type) => (
             <button
               key={type}
               className="rounded border border-[var(--bg-border)] bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:border-sakura-pink hover:text-[var(--text-primary)]"
@@ -263,7 +263,7 @@ export function EditorContainer({ project, onBackToPlayer }: Props) {
                 addNode(type, lastNodeId);
               }}
             >
-              + {type === "dialogue" ? "对白" : type === "narration" ? "旁白" : "选项"}
+              + {NODE_TYPE_LABELS[type] ?? type}
             </button>
           ))}
         </div>

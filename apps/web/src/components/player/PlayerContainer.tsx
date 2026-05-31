@@ -25,7 +25,7 @@ export function PlayerContainer({ project }: Props) {
 
   const { node, status, autoMode, textSpeed } = usePlayerStore();
   useEffect(() => {
-    if (autoMode && status === "playing" && node) {
+    if (autoMode && (status === "playing" || status === "branching") && node) {
       const text = "text" in node ? node.text || "" : "";
       const delay = Math.max(800, text.length ? text.length * textSpeed + 600 : 1500);
       autoTimer.current = setTimeout(() => {
@@ -114,6 +114,23 @@ export function PlayerContainer({ project }: Props) {
               onClick={restartScene}
             >
               重新开始本幕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {node.type === "branch" && (
+        <div className="flex h-full items-center justify-center">
+          <div className="rounded-lg border border-[var(--bg-border)] bg-[var(--bg-card)]/80 p-8 text-center backdrop-blur-sm">
+            <p className="mb-2 text-sm text-[var(--text-muted)]">剧情分支判定中...</p>
+            <p className="text-xs text-[var(--text-muted)]">
+              {node.condition}
+            </p>
+            <button
+              className="mt-6 rounded-lg bg-sakura-pink px-6 py-2 text-sm text-white transition-colors hover:bg-sakura-deep"
+              onClick={advance}
+            >
+              继续
             </button>
           </div>
         </div>
