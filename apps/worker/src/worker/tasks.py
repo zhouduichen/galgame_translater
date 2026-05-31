@@ -383,6 +383,30 @@ def _count_failed_jobs(
 # ── Concurrency test hook ──────────────────────────────────────────────────
 
 _CONCURRENCY_BARRIER: Any = None
+
+
+def _base_cache_fallback(
+    project: AdaptationProject,
+    character_id: str,
+    emotion_target: Emotion = Emotion.neutral,
+) -> Path | None:
+    """Fallback: check the base cache directory if the primary asset is missing.
+
+    Returns the cached base image path if found, None otherwise.
+    """
+    aid = project.characters.get(character_id, {}).asset_ids.get(emotion_target)  # type: ignore[union-attr]
+    if not aid or aid not in project.asset_resources:
+        return None
+    res = project.asset_resources[aid]
+    ikey = res.idempotency_key
+    if not ikey:
+        return None
+    try:
+        from .comfyui import _base_cache_path  # type: ignore[import-untyped]
+        cached = _base_cache_path(ikey)
+        return cached if cached.exists() else None
+    except Exception:
+        return None
 """Optional threading.Barrier injected by tests. Waits inside atomic_merge_asset
 right after BEGIN IMMEDIATE to maximise the race window."""
 
@@ -400,6 +424,12 @@ def _resolve_base_for_emotion(
 ) -> tuple[str | None, str | None]:
     """Resolve a base image for incremental character sprite generation.
 
+    Priority:
+      1. Primary: char.asset_ids[neutral] → asset_resources → file on disk
+      2. Fallback:  idempotency_key → _base_cache_path() (cached pre-Rembg output)
+      3. If neutral job is pending, re-enqueue
+      4. If neutral failed >= _DEGRADED_MAX_RETRIES, degrade to full gen
+
     Returns:
         (base_asset_id, base_image_path) for a ready base
         ("RE_ENQUEUE", None) if the caller should re-enqueue and return
@@ -409,11 +439,10 @@ def _resolve_base_for_emotion(
     if not char or emotion == "neutral":
         return None, None
 
-    # If we are already a re-enqueued degraded job, skip straight to full gen
     if degraded_base:
         return None, None
 
-    # Look for a neutral asset that exists on disk
+    # 1. Primary: check asset_resources + on-disk file
     aid = char.asset_ids.get(Emotion.neutral)
     if aid and aid in project.asset_resources:
         res = project.asset_resources[aid]
@@ -421,19 +450,23 @@ def _resolve_base_for_emotion(
         if img_path and img_path.exists():
             return aid, str(img_path)
 
-    # Neutral not ready yet — check if a neutral job is in flight
+    # 2. Fallback: check base cache directory
+    if aid and aid in project.asset_resources:
+        cached_path = _base_cache_fallback(project, character_id)
+        if cached_path is not None:
+            return aid, str(cached_path)
+
+    # 3. Check if neutral job is in flight
     pending_neutral = _count_pending_jobs(project_id, character_id=character_id, emotion="neutral")
     if pending_neutral > 0:
-        # Neutral will complete eventually → re-enqueue this job
         return "RE_ENQUEUE", None
 
-    # Check how many times neutral has been attempted
+    # 4. Check neutral failure history
     failed_neutral_count = _count_failed_jobs(project_id, character_id=character_id, emotion="neutral")
     if failed_neutral_count >= _DEGRADED_MAX_RETRIES:
-        # Neutral keeps failing → degrade to full gen
         return None, None
 
-    # Neutral hasn't been scheduled yet → let the caller trigger it
+    # 5. Neutral not yet scheduled
     return "RE_ENQUEUE", None
 
 

@@ -26,7 +26,7 @@ _WORKER_SRC = _HERE.parent / "src"
 if str(_WORKER_SRC) not in sys.path:
     sys.path.insert(0, str(_WORKER_SRC))
 
-from project_model.schema import AdaptationProject, AssetResource, AssetType  # noqa: E402
+from project_model.schema import AdaptationProject, AssetResource, AssetType, Emotion, Character  # noqa: E402
 
 # Use a test database in the same location that atomic_merge_asset expects
 TEST_DB_DIR = _HERE.parent / ".test_data"
@@ -217,4 +217,66 @@ class TestAtomicMergeEdgeCases:
         project = AdaptationProject.model_validate_json(row[0])
         assert project.scenes["scene_001"].background_id == "ast_bg"
         assert "ast_bg" in project.asset_resources
+        _cleanup()
+
+
+class TestBaseCacheFallback:
+    """Verify _base_cache_fallback() works with base cache paths."""
+
+    def test_base_cache_fallback_returns_none_when_no_neutral(self):
+        """No neutral asset in char.asset_ids → fallback returns None."""
+        from project_model.schema import Character
+        pid = _setup_project()
+        # Add a character with no neutral
+        conn = sqlite3.connect(str(TEST_DB_PATH))
+        row = conn.execute("SELECT data FROM projects WHERE id = ?", (pid,)).fetchone()
+        project = AdaptationProject.model_validate_json(row[0])
+        char = Character(
+            character_id="char_a",
+            name="Alice",
+            description="A test character",
+        )
+        project.characters["char_a"] = char
+        conn.execute(
+            "UPDATE projects SET data = ? WHERE id = ?",
+            (project.model_dump_json(), pid),
+        )
+        conn.commit()
+        conn.close()
+
+        # The fallback should return None when no neutral asset exists
+        from worker.tasks import _base_cache_fallback
+        result = _base_cache_fallback(project, "char_a")
+        assert result is None
+        _cleanup()
+
+    def test_base_cache_fallback_returns_none_when_no_idempotency_key(self):
+        """Asset exists but has no idempotency_key → cannot resolve cache path."""
+        pid = _setup_project()
+        conn = sqlite3.connect(str(TEST_DB_PATH))
+        row = conn.execute("SELECT data FROM projects WHERE id = ?", (pid,)).fetchone()
+        project = AdaptationProject.model_validate_json(row[0])
+        char = Character(
+            character_id="char_b",
+            name="Bob",
+            description="Another character",
+            asset_ids={Emotion.neutral: "ast_neutral"},
+        )
+        project.characters["char_b"] = char
+        project.asset_resources["ast_neutral"] = AssetResource(
+            id="ast_neutral",
+            url="/api/assets/neutral.png",
+            asset_type="character_sprite",
+            # No idempotency_key
+        )
+        conn.execute(
+            "UPDATE projects SET data = ? WHERE id = ?",
+            (project.model_dump_json(), pid),
+        )
+        conn.commit()
+        conn.close()
+
+        from worker.tasks import _base_cache_fallback
+        result = _base_cache_fallback(project, "char_b")
+        assert result is None
         _cleanup()
